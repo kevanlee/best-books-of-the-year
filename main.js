@@ -245,7 +245,7 @@ function defaultState() {
 }
 
 function createDefaultGroups() {
-  return [1, 2, 3].map((index) => ({ id: `group-${index}`, name: "" }));
+  return [{ id: "group-1", name: "" }];
 }
 
 function loadState() {
@@ -271,7 +271,10 @@ function migrateLegacyState(legacy) {
   const shortlistedValues = uniqueValid(legacy.narrowedValues, highlightedValues).length
     ? uniqueValid(legacy.narrowedValues, highlightedValues).slice(0, 25)
     : highlightedValues.slice(0, 25);
-  const groups = createDefaultGroups();
+  const groups = Array.from({ length: Math.min(3, Math.max(shortlistedValues.length, 1)) }, (_, index) => ({
+    id: `group-${index + 1}`,
+    name: "",
+  }));
   const assignments = {};
 
   shortlistedValues.forEach((value, index) => {
@@ -362,11 +365,11 @@ function normalizeGroups(inputGroups) {
     });
   });
 
-  while (result.length < 3) {
+  while (result.length < 1) {
     result.push({ id: nextGroupId(result), name: "" });
   }
 
-  return result.slice(0, 5);
+  return result;
 }
 
 function nextGroupId(groups) {
@@ -528,7 +531,9 @@ function renderWelcome() {
         </div>
 
         <div class="button-row">
-          <p class="microcopy">Start whenever you're ready.</p>
+          <div class="button-group">
+            <button class="button button-ghost" data-action="history-back">Back</button>
+          </div>
           <div class="button-group">
             <button class="button button-primary" data-action="goto" data-step="highlight">
               Start exercise
@@ -548,7 +553,7 @@ function renderHighlight() {
       <div class="panel-inner">
         <div class="panel-hero">
           <p class="eyebrow">Highlight</p>
-          <h2 class="panel-title">Highlight any values that fit.</h2>
+          <h2 class="panel-title">Highlight the values that are most important to you.</h2>
           <p class="panel-copy">Start broad. No limit.</p>
         </div>
 
@@ -566,7 +571,7 @@ function renderHighlight() {
         <div class="helper-card">
           <div>
             <strong>Tip</strong>
-            <p class="counter-note">If it matters to your life, your work, or both, mark it.</p>
+            <p class="counter-note">These can be aspirational, true today, or both. Highlight whatever feels most important to you right now, and go with your gut.</p>
           </div>
           <div class="save-pill">
             <span>No limit in this round</span>
@@ -623,7 +628,7 @@ function renderShortlist() {
         <div class="helper-card">
           <div>
             <strong>Tip</strong>
-            <p class="counter-note">Ask: would I really miss this?</p>
+            <p class="counter-note">Ask: is this integral to who I am?</p>
           </div>
           <div class="save-pill">
             <span>Up to 25 values</span>
@@ -666,24 +671,24 @@ function renderGroup() {
         <div class="panel-hero">
           <p class="eyebrow">Group</p>
           <h2 class="panel-title">Group related values.</h2>
-          <p class="panel-copy">Name your groups, then drag values into them.</p>
+          <p class="panel-copy">Name your groups, then drag values into them. Add as many groups as you need.</p>
         </div>
 
         <div class="section-head">
           <div>
             <h3 class="section-title">Your categories</h3>
-            <p class="support-copy">Each group becomes one final value.</p>
+            <p class="support-copy">Each group becomes one final value, even if it only has one value in it.</p>
           </div>
           <div class="counter-pill ${ready ? "" : "is-warning"}">
-            <span>Active groups</span>
-            <strong>${activeGroups.length}/3-5</strong>
+            <span>Groups in use</span>
+            <strong>${activeGroups.length}</strong>
           </div>
         </div>
 
         <div class="helper-card">
           <div>
             <strong>Tip</strong>
-            <p class="counter-note">Related ideas can live together. Outliers are fine.</p>
+            <p class="counter-note">You might group belonging, connection, and togetherness in a group called Inclusion. Values that do not fit with others can be a group of one.</p>
           </div>
           <div class="save-pill">
             <span>${status}</span>
@@ -696,11 +701,15 @@ function renderGroup() {
 
         <div class="button-row">
           <div class="button-group">
-            <button class="button button-secondary" data-action="add-group" ${state.groups.length >= 5 ? "disabled" : ""}>
+            <button
+              class="button button-secondary"
+              data-action="add-group"
+              ${state.groups.length >= Math.max(state.shortlistedValues.length, 1) ? "disabled" : ""}
+            >
               Add group
             </button>
           </div>
-          <p class="microcopy">Use 3 to 5 groups.</p>
+          <p class="microcopy">Create as many groups as you need, including groups with just one value.</p>
         </div>
 
         <article class="shortlist-tray" data-drop-group="">
@@ -739,13 +748,13 @@ function renderRank() {
         <div class="panel-hero">
           <p class="eyebrow">Rank</p>
           <h2 class="panel-title">Rank your final values.</h2>
-          <p class="panel-copy">Put the most important at the top.</p>
+          <p class="panel-copy">Put the most important at the top. Every active group appears here, including one-value groups.</p>
         </div>
 
         <div class="helper-card">
           <div>
             <strong>Tip</strong>
-            <p class="counter-note">If two clash, which one wins?</p>
+            <p class="counter-note">If two clash, which one wins? Single-value groups count here too.</p>
           </div>
           <div class="save-pill">
             <span>${state.rankedGroupIds.length} final values</span>
@@ -892,7 +901,7 @@ function renderValueCard(value, selectedList, action, limitReached = false) {
 
 function renderGroupCard(group, index) {
   const memberCount = getGroupMembers(group.id).length;
-  const canRemove = state.groups.length > 3;
+  const canRemove = state.groups.length > 1;
 
   return `
     <article class="group-card">
@@ -914,7 +923,7 @@ function renderGroupCard(group, index) {
         data-action="rename-group"
         data-group-id="${group.id}"
         value="${escapeAttribute(group.name)}"
-        placeholder="Example: Meaningful contribution"
+        placeholder="Example: Inclusion"
       />
       <div class="group-dropzone" data-drop-group="${group.id}">
         <div class="dropzone-head">
@@ -949,12 +958,14 @@ function renderDragPill(value) {
 function renderRankItem(groupId, index) {
   const group = getGroupById(groupId);
   const members = getGroupMembers(groupId);
+  const note = members.length === 1 ? "Single-value group" : `${members.length} values grouped`;
 
   return `
     <div class="rank-item">
       <div class="rank-position">${index + 1}</div>
       <div class="rank-content">
         <p class="rank-value">${escapeHtml(group.name.trim())}</p>
+        <p class="rank-note">${note}</p>
         <div class="chip-list chip-list-compact">
           ${members.map((value) => `<span class="chip">${escapeHtml(value)}</span>`).join("")}
         </div>
@@ -1054,6 +1065,9 @@ function handleClick(event) {
   switch (action) {
     case "goto":
       goToStep(target.dataset.step);
+      break;
+    case "history-back":
+      goBack();
       break;
     case "toggle-highlight":
       toggleValue("highlightedValues", value);
@@ -1244,7 +1258,7 @@ function goToStep(step) {
     } else if (step === "group") {
       showToast("Choose at least a few shortlisted values before grouping them.");
     } else {
-      showToast("Finish grouping and naming 3 to 5 categories before moving ahead.");
+      showToast("Assign every shortlisted value to a named group before moving ahead.");
     }
     return;
   }
@@ -1312,7 +1326,7 @@ function toggleShortlist(value) {
 }
 
 function addGroup() {
-  if (state.groups.length >= 5) {
+  if (state.groups.length >= Math.max(state.shortlistedValues.length, 1)) {
     return;
   }
 
@@ -1323,7 +1337,7 @@ function addGroup() {
 }
 
 function removeGroup(groupId) {
-  if (state.groups.length <= 3) {
+  if (state.groups.length <= 1) {
     return;
   }
 
@@ -1384,7 +1398,7 @@ function groupingReady(snapshot = state) {
   const allAssigned = snapshot.shortlistedValues.length > 0 && getUnassignedValues(snapshot).length === 0;
   const namedGroups = activeGroups.every((group) => group.name.trim());
 
-  return allAssigned && activeGroups.length >= 3 && activeGroups.length <= 5 && namedGroups;
+  return allAssigned && activeGroups.length > 0 && namedGroups;
 }
 
 function groupingStatus(snapshot = state) {
@@ -1395,8 +1409,8 @@ function groupingStatus(snapshot = state) {
     return `${unassigned.length} ${unassigned.length === 1 ? "value still needs" : "values still need"} a group`;
   }
 
-  if (activeGroups.length < 3) {
-    return "Create at least 3 active groups";
+  if (activeGroups.length === 0) {
+    return "Create at least one group";
   }
 
   if (activeGroups.some((group) => !group.name.trim())) {
@@ -1613,6 +1627,15 @@ function restart() {
   saveState();
   render();
   showToast("Exercise restarted.");
+}
+
+function goBack() {
+  if (window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+
+  showToast("No previous page to go back to.");
 }
 
 function showToast(message) {
