@@ -454,13 +454,20 @@ function render() {
 }
 
 function renderProgress() {
+  if (state.currentStep === "welcome") {
+    progress.innerHTML = "";
+    return;
+  }
+
   const currentIndex = STEPS.findIndex((step) => step.id === state.currentStep);
-  const totalSegments = STEPS.length - 1;
-  const progressPercent = totalSegments === 0 ? 0 : (currentIndex / totalSegments) * 100;
+  const visibleStepIndex = currentIndex - 1;
+  const visibleStepCount = STEPS.length - 1;
+  const progressPercent =
+    visibleStepCount <= 1 ? 0 : (visibleStepIndex / (visibleStepCount - 1)) * 100;
 
   progress.innerHTML = `
     <div class="progress-copy">
-      <span>Step ${currentIndex + 1} / ${STEPS.length}</span>
+      <span>Step ${visibleStepIndex + 1} / ${visibleStepCount}</span>
       <span>${STEPS[currentIndex].label}</span>
       <button class="button button-secondary button-compact" data-action="restart">
         Start over
@@ -481,36 +488,47 @@ function renderWelcome() {
     <section class="${panelClass("welcome")}">
       <div class="panel-inner">
         <div class="panel-hero">
-          <p class="eyebrow">Values exercise</p>
-          <h2 class="panel-title">Clarify the values that matter most to you.</h2>
+          <h2 class="panel-title">Welcome to the Values Exercise.</h2>
           <p class="panel-copy">
             Values are the qualities, principles, and ways of living or working that feel most important to you.
             They shape what feels meaningful, motivating, and worth protecting.
           </p>
           <p class="panel-copy">
             You can move through this exercise thinking about your personal values, your professional values, or the
-            overlap between the two. Start broad, narrow to 25, group related ideas, then rank and reflect.
+            overlap between the two.
           </p>
-          <p class="panel-copy">Your progress saves on this device.</p>
+          <p class="panel-copy">
+            You'll walk away from this exercise with your values defined by you personally to take into your life as
+            decision-making filters.
+          </p>
+          <p class="panel-copy">Your progress saves on this device, and most people finish in about 10 to 15 minutes.</p>
         </div>
 
         <div class="welcome-grid">
-          <div class="stat-card">
-            <strong>Highlight freely</strong>
-            Mark anything that matters.
+          <div class="welcome-step">
+            <span class="welcome-step-number">1</span>
+            <strong class="welcome-step-title">Longlist</strong>
+            <p class="support-copy">Mark every value that feels important to your life, your work, or both.</p>
           </div>
-          <div class="stat-card">
-            <strong>Pick your 25</strong>
-            Keep only the strongest ones.
+          <div class="welcome-step">
+            <span class="welcome-step-number">2</span>
+            <strong class="welcome-step-title">Shortlist</strong>
+            <p class="support-copy">Narrow the list to the 25 values that feel most central right now.</p>
           </div>
-          <div class="stat-card">
-            <strong>Group and rank</strong>
-            Turn them into a final set.
+          <div class="welcome-step">
+            <span class="welcome-step-number">3</span>
+            <strong class="welcome-step-title">Group &amp; rank</strong>
+            <p class="support-copy">Combine related ideas, name them in your own words, and order what matters most.</p>
+          </div>
+          <div class="welcome-step">
+            <span class="welcome-step-number">4</span>
+            <strong class="welcome-step-title">Define &amp; reflect</strong>
+            <p class="support-copy">Describe what each value means, how it shows up, and what happens when it is missing.</p>
           </div>
         </div>
 
         <div class="button-row">
-          <p class="microcopy">About 10 to 15 minutes.</p>
+          <p class="microcopy">Start whenever you're ready.</p>
           <div class="button-group">
             <button class="button button-primary" data-action="goto" data-step="highlight">
               Start exercise
@@ -536,7 +554,7 @@ function renderHighlight() {
 
         <div class="section-head">
           <div>
-            <h3 class="section-title">Professional values</h3>
+            <h3 class="section-title">Values list</h3>
             <p class="support-copy">Tap to highlight.</p>
           </div>
           <div class="counter-pill">
@@ -548,7 +566,7 @@ function renderHighlight() {
         <div class="helper-card">
           <div>
             <strong>Tip</strong>
-            <p class="counter-note">If it matters at work, mark it.</p>
+            <p class="counter-note">If it matters to your life, your work, or both, mark it.</p>
           </div>
           <div class="save-pill">
             <span>No limit in this round</span>
@@ -814,7 +832,7 @@ function renderResults() {
       <div class="panel-inner">
         <div class="panel-hero">
           <p class="eyebrow">Results</p>
-          <h2 class="panel-title">Your professional values snapshot.</h2>
+          <h2 class="panel-title">Your values snapshot.</h2>
           <p class="panel-copy">A simple version you can revisit or share.</p>
         </div>
 
@@ -985,8 +1003,8 @@ function renderReflectionCard(groupId, index) {
       </div>
 
       <div class="field-group">
-        <label for="meaning-${groupId}">What does this value mean to you at work?</label>
-        <textarea id="meaning-${groupId}" class="text-area" data-action="update-reflection" data-group-id="${groupId}" data-field="meaning" placeholder="Describe what this value means in your day-to-day working life.">${escapeHtml(reflection.meaning)}</textarea>
+        <label for="meaning-${groupId}">What does this value mean to you in your life or work?</label>
+        <textarea id="meaning-${groupId}" class="text-area" data-action="update-reflection" data-group-id="${groupId}" data-field="meaning" placeholder="Describe what this value means in your day-to-day life or work.">${escapeHtml(reflection.meaning)}</textarea>
       </div>
 
       <div class="field-group">
@@ -1013,7 +1031,7 @@ function renderResultCard(groupId, index) {
       <div class="chip-list chip-list-compact">
         ${members.map((value) => `<span class="chip">${escapeHtml(value)}</span>`).join("")}
       </div>
-      <h4>What it means to you at work</h4>
+      <h4>What it means to you in your life or work</h4>
       <p>${formatReflection(reflection.meaning)}</p>
       <h4>When it is honored</h4>
       <p>${formatReflection(reflection.honored)}</p>
@@ -1411,20 +1429,20 @@ function buildSummary() {
   const workNeeds = deriveWorkNeeds(flattenedValues);
 
   const firstParagraph = topThree.length
-    ? `Your final values profile centers on ${naturalList(topThree)}. These appear to be the strongest anchors for how you define professional fit right now.`
-    : "Your final categories capture the values that currently matter most to you at work.";
+    ? `Your final values profile centers on ${naturalList(topThree)}. These appear to be the strongest anchors for how you define alignment in your life or work right now.`
+    : "Your final categories capture the values that currently matter most to you right now.";
 
   const secondParagraph = honoredThemes.length
-    ? `Across your reflections, you seem to do your best work when there is ${naturalList(honoredThemes)}.`
-    : `Across your reflections, the clearest pattern is a desire for work that feels aligned, thoughtful, and personally sustainable.`;
+    ? `Across your reflections, you seem to do your best when there is ${naturalList(honoredThemes)}.`
+    : `Across your reflections, the clearest pattern is a desire for a life and work rhythm that feels aligned, thoughtful, and personally sustainable.`;
 
   const thirdParagraph = missingThemes.length
     ? `When these values are missing, the friction seems to show up as the absence of ${naturalList(missingThemes)}.`
     : `When these values are missing, the tension is likely to show up quickly in how steady, engaged, and effective the work feels.`;
 
   const fourthParagraph = workNeeds.length
-    ? `Taken together, roles that fit you well are likely to offer ${naturalList(workNeeds)}.`
-    : `Taken together, roles that fit you well are likely to make your priorities visible in day-to-day work, not just in stated company values.`;
+    ? `Taken together, environments that fit you well are likely to offer ${naturalList(workNeeds)}.`
+    : `Taken together, the right environments for you are likely to make your priorities visible in day-to-day life, not just in stated ideals.`;
 
   return [firstParagraph, secondParagraph, thirdParagraph, fourthParagraph];
 }
@@ -1577,7 +1595,7 @@ function resultsText() {
     lines.push("");
     lines.push(`${index + 1}. ${group.name.trim()}`);
     lines.push(`Grouped values: ${members.join(", ") || "-"}`);
-    lines.push(`What it means to you at work: ${reflection.meaning || "-"}`);
+    lines.push(`What it means to you in your life or work: ${reflection.meaning || "-"}`);
     lines.push(`When it is honored: ${reflection.honored || "-"}`);
     lines.push(`When it is missing: ${reflection.missing || "-"}`);
   });
