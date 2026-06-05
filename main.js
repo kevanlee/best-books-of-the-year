@@ -481,9 +481,16 @@ function renderWelcome() {
     <section class="${panelClass("welcome")}">
       <div class="panel-inner">
         <div class="panel-hero">
-          <p class="eyebrow">Professional values</p>
-          <h2 class="panel-title">Clarify the values you want your work to honor.</h2>
-          <p class="panel-copy">Start broad, narrow to 25, group related ideas, then rank and reflect.</p>
+          <p class="eyebrow">Values exercise</p>
+          <h2 class="panel-title">Clarify the values that matter most to you.</h2>
+          <p class="panel-copy">
+            Values are the qualities, principles, and ways of living or working that feel most important to you.
+            They shape what feels meaningful, motivating, and worth protecting.
+          </p>
+          <p class="panel-copy">
+            You can move through this exercise thinking about your personal values, your professional values, or the
+            overlap between the two. Start broad, narrow to 25, group related ideas, then rank and reflect.
+          </p>
           <p class="panel-copy">Your progress saves on this device.</p>
         </div>
 
