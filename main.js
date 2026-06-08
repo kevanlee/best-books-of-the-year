@@ -6,8 +6,8 @@ const STEPS = [
   { id: "highlight", label: "Highlight" },
   { id: "shortlist", label: "Shortlist" },
   { id: "group", label: "Group" },
-  { id: "rank", label: "Rank" },
-  { id: "reflect", label: "Reflect" },
+  { id: "select", label: "Choose" },
+  { id: "reflect", label: "Define" },
   { id: "results", label: "Results" },
 ];
 
@@ -212,6 +212,14 @@ const THEMES = [
   },
 ];
 
+const SHARE_MARKERS = [
+  { emoji: "🔥", color: "#e76f51" },
+  { emoji: "🌿", color: "#5b8c5a" },
+  { emoji: "🌊", color: "#3a86b8" },
+  { emoji: "🪞", color: "#8b6fcf" },
+  { emoji: "⭐", color: "#e9b949" },
+];
+
 const app = document.getElementById("app");
 const progress = document.getElementById("progress");
 const toast = document.getElementById("toast");
@@ -239,13 +247,17 @@ function defaultState() {
     shortlistedValues: [],
     groups: createDefaultGroups(),
     assignments: {},
-    rankedGroupIds: [],
+    finalGroupIds: [],
+    hasEditedFinalSelection: false,
     reflections: {},
   };
 }
 
 function createDefaultGroups() {
-  return [{ id: "group-1", name: "" }];
+  return [
+    { id: "group-1", name: "" },
+    { id: "group-2", name: "" },
+  ];
 }
 
 function loadState() {
@@ -287,7 +299,8 @@ function migrateLegacyState(legacy) {
     shortlistedValues,
     groups,
     assignments,
-    rankedGroupIds: [],
+    finalGroupIds: [],
+    hasEditedFinalSelection: false,
     reflections: {},
   };
 }
@@ -315,13 +328,23 @@ function normalizeState(input) {
   });
 
   const activeGroups = getActiveGroups({ shortlistedValues, groups, assignments });
-  let rankedGroupIds = uniqueIds(base.rankedGroupIds, activeGroups.map((group) => group.id));
-  rankedGroupIds = rankedGroupIds.concat(
-    activeGroups.map((group) => group.id).filter((groupId) => !rankedGroupIds.includes(groupId))
-  );
+  const activeGroupIds = activeGroups.map((group) => group.id);
+  const legacySelections = Array.isArray(base.finalGroupIds) ? base.finalGroupIds : base.rankedGroupIds;
+  const normalizedSelections = uniqueIds(legacySelections, activeGroupIds);
+  const hasEditedFinalSelection =
+    base.hasEditedFinalSelection === true ||
+    (Array.isArray(base.rankedGroupIds) && base.rankedGroupIds.length > 0);
+  const finalGroupIds =
+    activeGroupIds.length <= 5
+      ? hasEditedFinalSelection
+        ? normalizedSelections
+        : activeGroupIds
+      : hasEditedFinalSelection
+        ? normalizedSelections.slice(0, 5)
+        : [];
 
   const reflections = {};
-  rankedGroupIds.forEach((groupId) => {
+  finalGroupIds.forEach((groupId) => {
     const existing = base.reflections && base.reflections[groupId] ? base.reflections[groupId] : {};
     reflections[groupId] = {
       meaning: typeof existing.meaning === "string" ? existing.meaning : "",
@@ -335,7 +358,8 @@ function normalizeState(input) {
     shortlistedValues,
     groups,
     assignments,
-    rankedGroupIds,
+    finalGroupIds,
+    hasEditedFinalSelection,
     reflections,
   });
 
@@ -345,7 +369,8 @@ function normalizeState(input) {
     shortlistedValues,
     groups,
     assignments,
-    rankedGroupIds,
+    finalGroupIds,
+    hasEditedFinalSelection,
     reflections,
   };
 }
@@ -440,8 +465,8 @@ function render() {
     case "group":
       renderGroup();
       break;
-    case "rank":
-      renderRank();
+    case "select":
+      renderSelect();
       break;
     case "reflect":
       renderReflect();
@@ -490,56 +515,60 @@ function renderWelcome() {
   app.innerHTML = `
     <section class="${panelClass("welcome")}">
       <div class="panel-inner">
-        <div class="panel-hero">
-          <h2 class="panel-title">Welcome to the Values Exercise.</h2>
-          <p class="panel-copy">
-            Values are the qualities, principles, and ways of living or working that feel most important to you.
-            They shape what feels meaningful, motivating, and worth protecting.
-          </p>
-          <p class="panel-copy">
-            You can move through this exercise thinking about your personal values, your professional values, or the
-            overlap between the two.
-          </p>
-          <p class="panel-copy">
-            You'll walk away from this exercise with your values defined by you personally to take into your life as
-            decision-making filters.
-          </p>
-          <p class="panel-copy">Your progress saves on this device, and most people finish in about 10 to 15 minutes.</p>
-        </div>
-
-        <div class="welcome-grid">
-          <div class="welcome-step">
-            <span class="welcome-step-number">1</span>
-            <strong class="welcome-step-title">Longlist</strong>
-            <p class="support-copy">Mark every value that feels important to your life, your work, or both.</p>
-          </div>
-          <div class="welcome-step">
-            <span class="welcome-step-number">2</span>
-            <strong class="welcome-step-title">Shortlist</strong>
-            <p class="support-copy">Narrow the list to the 25 values that feel most central right now.</p>
-          </div>
-          <div class="welcome-step">
-            <span class="welcome-step-number">3</span>
-            <strong class="welcome-step-title">Group &amp; rank</strong>
-            <p class="support-copy">Combine related ideas, name them in your own words, and order what matters most.</p>
-          </div>
-          <div class="welcome-step">
-            <span class="welcome-step-number">4</span>
-            <strong class="welcome-step-title">Define &amp; reflect</strong>
-            <p class="support-copy">Describe what each value means, how it shows up, and what happens when it is missing.</p>
-          </div>
-        </div>
-
-        <div class="button-row">
-          <div class="button-group">
-            <button class="button button-ghost" data-action="history-back">Back</button>
-          </div>
-          <div class="button-group">
+        <div class="welcome-hero">
+          <div class="welcome-hero-inner">
+            <p class="eyebrow">Values workshop</p>
+            <h1 class="welcome-headline">Find the values worth building your life and work around.</h1>
             <button class="button button-primary" data-action="goto" data-step="highlight">
               Start exercise
             </button>
           </div>
         </div>
+
+        <div class="welcome-layout">
+          <div class="welcome-copy">
+            <h2 class="panel-title">Welcome to the Values Exercise.</h2>
+            <p class="panel-copy">
+              Values are the qualities, principles, and ways of living or working that feel most important to you.
+              They shape what feels meaningful, motivating, and worth protecting.
+            </p>
+            <p class="panel-copy">
+              You can move through this exercise thinking about your personal values, your professional values, or the
+              overlap between the two.
+            </p>
+            <p class="panel-copy">
+              You'll walk away from this exercise with your values defined by you personally to take into your life as
+              decision-making filters.
+            </p>
+            <p class="panel-copy">
+              Your progress saves on this device, and most people finish in about 10 to 15 minutes.
+            </p>
+          </div>
+
+          <div class="welcome-steps-column">
+            <div class="welcome-step">
+              <span class="welcome-step-number">1</span>
+              <strong class="welcome-step-title">Longlist</strong>
+              <p class="support-copy">Mark every value that feels important to your life, your work, or both.</p>
+            </div>
+            <div class="welcome-step">
+              <span class="welcome-step-number">2</span>
+              <strong class="welcome-step-title">Shortlist</strong>
+              <p class="support-copy">Narrow the list to the 25 values that feel most central right now.</p>
+            </div>
+            <div class="welcome-step">
+              <span class="welcome-step-number">3</span>
+              <strong class="welcome-step-title">Group &amp; choose</strong>
+              <p class="support-copy">Combine related ideas, name them in your own words, and choose your final 3 to 5 if you have more than five groups.</p>
+            </div>
+            <div class="welcome-step">
+              <span class="welcome-step-number">4</span>
+              <strong class="welcome-step-title">Define</strong>
+              <p class="support-copy">Describe what each value means to you, how you recognize it, and what happens when it is missing.</p>
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
   `;
@@ -552,29 +581,19 @@ function renderHighlight() {
     <section class="${panelClass("highlight")}">
       <div class="panel-inner">
         <div class="panel-hero">
-          <p class="eyebrow">Highlight</p>
-          <h2 class="panel-title">Highlight the values that are most important to you.</h2>
-          <p class="panel-copy">Start broad. No limit.</p>
+          <p class="eyebrow eyebrow-pill">Step 1</p>
+          <h2 class="panel-title">Choose the values that are most important to you.</h2>
+          <p class="panel-copy">
+            These can be aspirational, true today, or both. Highlight whatever feels most important to you right now,
+            and go with your gut. Choose as many as you like. No limit.
+          </p>
         </div>
 
         <div class="section-head">
-          <div>
-            <h3 class="section-title">Values list</h3>
-            <p class="support-copy">Tap to highlight.</p>
-          </div>
+          <h3 class="section-title">Values list</h3>
           <div class="counter-pill">
             <span>Highlighted</span>
             <strong>${count}</strong>
-          </div>
-        </div>
-
-        <div class="helper-card">
-          <div>
-            <strong>Tip</strong>
-            <p class="counter-note">These can be aspirational, true today, or both. Highlight whatever feels most important to you right now, and go with your gut.</p>
-          </div>
-          <div class="save-pill">
-            <span>No limit in this round</span>
           </div>
         </div>
 
@@ -609,29 +628,19 @@ function renderShortlist() {
     <section class="${panelClass("shortlist")}">
       <div class="panel-inner">
         <div class="panel-hero">
-          <p class="eyebrow">Shortlist</p>
+          <p class="eyebrow eyebrow-pill">Step 2</p>
           <h2 class="panel-title">Pick your top 25.</h2>
-          <p class="panel-copy">Choose up to 25 from your highlights.</p>
+          <p class="panel-copy">Choose up to 25 from your highlights. Ask: is this integral to who I am?</p>
+          <p class="panel-copy">Up to 25 values.</p>
         </div>
 
         <div class="section-head">
           <div>
             <h3 class="section-title">Your highlighted values</h3>
-            <p class="support-copy">Only your strongest values.</p>
           </div>
           <div class="counter-pill ${atLimit ? "is-warning" : ""}">
             <span>Shortlisted</span>
             <strong>${count}/25</strong>
-          </div>
-        </div>
-
-        <div class="helper-card">
-          <div>
-            <strong>Tip</strong>
-            <p class="counter-note">Ask: is this integral to who I am?</p>
-          </div>
-          <div class="save-pill">
-            <span>Up to 25 values</span>
           </div>
         </div>
 
@@ -664,75 +673,86 @@ function renderGroup() {
   const unassigned = getUnassignedValues(state);
   const ready = groupingReady(state);
   const status = groupingStatus(state);
+  const startedGrouping = state.shortlistedValues.some((value) => Boolean(state.assignments[value]));
+  const canAutoGroupRemaining = startedGrouping && unassigned.length > 0;
 
   app.innerHTML = `
     <section class="${panelClass("group")}">
       <div class="panel-inner">
         <div class="panel-hero">
-          <p class="eyebrow">Group</p>
+          <p class="eyebrow eyebrow-pill">Step 3</p>
           <h2 class="panel-title">Group related values.</h2>
-          <p class="panel-copy">Name your groups, then drag values into them. Add as many groups as you need.</p>
+          <p class="panel-copy">
+            Drag values into groups. Belonging, connection, and togetherness might become Inclusion. A single value
+            can stand on its own.
+          </p>
+          <p class="panel-copy">${status}</p>
         </div>
 
-        <div class="section-head">
-          <div>
-            <h3 class="section-title">Your categories</h3>
-            <p class="support-copy">Each group becomes one final value, even if it only has one value in it.</p>
-          </div>
-          <div class="counter-pill ${ready ? "" : "is-warning"}">
-            <span>Groups in use</span>
-            <strong>${activeGroups.length}</strong>
-          </div>
-        </div>
+        <div class="grouping-layout">
+          <div class="grouping-sidebar">
+            <div class="dropzone-head grouping-column-head">
+              <h3 class="dropzone-title">Your Values</h3>
+              <span class="dropzone-count">${unassigned.length}</span>
+            </div>
 
-        <div class="helper-card">
-          <div>
-            <strong>Tip</strong>
-            <p class="counter-note">You might group belonging, connection, and togetherness in a group called Inclusion. Values that do not fit with others can be a group of one.</p>
-          </div>
-          <div class="save-pill">
-            <span>${status}</span>
-          </div>
-        </div>
+            <article class="shortlist-tray" data-drop-group="">
+              <div class="dropzone-items">
+                ${
+                  unassigned.length
+                    ? unassigned.map((value) => renderDragPill(value)).join("")
+                    : '<p class="dropzone-empty">All values are grouped.</p>'
+                }
+              </div>
+            </article>
 
-        <div class="group-grid">
-          ${state.groups.map((group, index) => renderGroupCard(group, index)).join("")}
-        </div>
-
-        <div class="button-row">
-          <div class="button-group">
-            <button
-              class="button button-secondary"
-              data-action="add-group"
-              ${state.groups.length >= Math.max(state.shortlistedValues.length, 1) ? "disabled" : ""}
-            >
-              Add group
-            </button>
-          </div>
-          <p class="microcopy">Create as many groups as you need, including groups with just one value.</p>
-        </div>
-
-        <article class="shortlist-tray" data-drop-group="">
-          <div class="dropzone-head">
-            <h3 class="dropzone-title">Shortlist</h3>
-            <span class="dropzone-count">${unassigned.length}</span>
-          </div>
-          <div class="dropzone-items">
             ${
-              unassigned.length
-                ? unassigned.map((value) => renderDragPill(value)).join("")
-                : '<p class="dropzone-empty">All values are assigned.</p>'
+              canAutoGroupRemaining
+                ? `<div class="grouping-sidebar-actions">
+                    <button class="button button-secondary" data-action="auto-group-remaining">
+                      ${
+                        unassigned.length === 1
+                          ? "Add the last value as its own group"
+                          : "Add the rest as individual groups"
+                      }
+                    </button>
+                  </div>`
+                : ""
             }
           </div>
-        </article>
+
+          <div class="grouping-main">
+            <div class="dropzone-head grouping-column-head">
+              <h3 class="dropzone-title">Your groups</h3>
+              <div class="counter-pill ${ready ? "" : "is-warning"}">
+                <span>Groups in use</span>
+                <strong>${activeGroups.length}</strong>
+              </div>
+            </div>
+
+            <div class="group-grid">
+              ${state.groups.map((group, index) => renderGroupCard(group, index)).join("")}
+            </div>
+
+            <div class="grouping-controls">
+              <button
+                class="button button-secondary"
+                data-action="add-group"
+                ${state.groups.length >= Math.max(state.shortlistedValues.length, 1) ? "disabled" : ""}
+              >
+                Add group
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div class="button-row">
           <div class="button-group">
             <button class="button button-ghost" data-action="goto" data-step="shortlist">Back</button>
           </div>
           <div class="button-group">
-            <button class="button button-primary" data-action="goto" data-step="rank" ${ready ? "" : "disabled"}>
-              Continue to ranking
+            <button class="button button-primary" data-action="goto" data-step="select" ${ready ? "" : "disabled"}>
+              Continue to final choices
             </button>
           </div>
         </div>
@@ -741,28 +761,29 @@ function renderGroup() {
   `;
 }
 
-function renderRank() {
+function renderSelect() {
+  const activeGroups = getActiveGroups(state);
+  const selectedCount = state.finalGroupIds.length;
+  const ready = finalSelectionReady(state);
+  const helperText =
+    activeGroups.length > 5
+      ? "Choose up to 5 groups that feel most essential right now. None are selected yet."
+      : "Your groups are selected by default. Unselect any that you do not want to carry forward.";
+
   app.innerHTML = `
-    <section class="${panelClass("rank")}">
+    <section class="${panelClass("select")}">
       <div class="panel-inner">
         <div class="panel-hero">
-          <p class="eyebrow">Rank</p>
-          <h2 class="panel-title">Rank your final values.</h2>
-          <p class="panel-copy">Put the most important at the top. Every active group appears here, including one-value groups.</p>
-        </div>
-
-        <div class="helper-card">
-          <div>
-            <strong>Tip</strong>
-            <p class="counter-note">If two clash, which one wins? Single-value groups count here too.</p>
-          </div>
-          <div class="save-pill">
-            <span>${state.rankedGroupIds.length} final values</span>
-          </div>
+          <p class="eyebrow eyebrow-pill">Step 4</p>
+          <h2 class="panel-title">Confirm your values (5 max).</h2>
+          <p class="panel-copy">
+            ${helperText} Pick the values you would most want guiding your decisions, even when tradeoffs are real.
+          </p>
+          <p class="panel-copy">${selectedCount} selected.</p>
         </div>
 
         <div class="rank-list">
-          ${state.rankedGroupIds.map((groupId, index) => renderRankItem(groupId, index)).join("")}
+          ${activeGroups.map((group) => renderFinalChoiceItem(group.id)).join("")}
         </div>
 
         <div class="button-row">
@@ -770,8 +791,8 @@ function renderRank() {
             <button class="button button-ghost" data-action="goto" data-step="group">Back</button>
           </div>
           <div class="button-group">
-            <button class="button button-primary" data-action="goto" data-step="reflect">
-              Continue to reflection
+            <button class="button button-primary" data-action="goto" data-step="reflect" ${ready ? "" : "disabled"}>
+              Continue to definitions
             </button>
           </div>
         </div>
@@ -781,7 +802,7 @@ function renderRank() {
 }
 
 function renderReflect() {
-  const startedCount = state.rankedGroupIds.filter((groupId) => {
+  const startedCount = state.finalGroupIds.filter((groupId) => {
     const reflection = state.reflections[groupId] || {};
     return Boolean(reflection.meaning || reflection.honored || reflection.missing);
   }).length;
@@ -790,37 +811,32 @@ function renderReflect() {
     <section class="${panelClass("reflect")}">
       <div class="panel-inner">
         <div class="panel-hero">
-          <p class="eyebrow">Reflect</p>
-          <h2 class="panel-title">Add notes for each value.</h2>
-          <p class="panel-copy">Keep them short and concrete.</p>
+          <p class="eyebrow eyebrow-pill">Step 5</p>
+          <h2 class="panel-title">Define what each value means to you.</h2>
+          <p class="panel-copy">
+            Start with your own definition, then add a few signals for when it is present or missing. Write the
+            definition the way you would explain it to yourself or to someone you trust.
+          </p>
+          <p class="panel-copy">Autosaving locally.</p>
         </div>
 
         <div class="section-head">
           <div>
             <h3 class="section-title">Reflections</h3>
-            <p class="support-copy">Autosaves on this device.</p>
           </div>
           <div class="counter-pill">
             <span>Started</span>
-            <strong>${startedCount}/${state.rankedGroupIds.length}</strong>
+            <strong>${startedCount}/${state.finalGroupIds.length}</strong>
           </div>
-        </div>
-
-        <div class="helper-card">
-          <div>
-            <strong>Tip</strong>
-            <p class="counter-note">Say what it means, what it looks like, and what is missing.</p>
-          </div>
-          <p class="autosave" id="autosave-status">Autosaving locally.</p>
         </div>
 
         <div class="reflection-list">
-          ${state.rankedGroupIds.map((groupId, index) => renderReflectionCard(groupId, index)).join("")}
+          ${state.finalGroupIds.map((groupId) => renderReflectionCard(groupId)).join("")}
         </div>
 
         <div class="button-row">
           <div class="button-group">
-            <button class="button button-ghost" data-action="goto" data-step="rank">Back</button>
+            <button class="button button-ghost" data-action="goto" data-step="select">Back</button>
           </div>
           <div class="button-group">
             <button class="button button-primary" data-action="goto" data-step="results">
@@ -835,35 +851,47 @@ function renderReflect() {
 
 function renderResults() {
   const summary = buildSummary();
+  const shareMarkers = getShareMarkers();
 
   app.innerHTML = `
     <section class="${panelClass("results")}">
       <div class="panel-inner">
         <div class="panel-hero">
-          <p class="eyebrow">Results</p>
+          <p class="eyebrow eyebrow-pill">Step 6</p>
           <h2 class="panel-title">Your values snapshot.</h2>
           <p class="panel-copy">A simple version you can revisit or share.</p>
         </div>
 
         <div class="results-layout">
           <div class="summary-card">
-            <h3 class="result-rank">Ranked values</h3>
-            <ol class="result-list">
-              ${state.rankedGroupIds.map((groupId) => {
-                const group = getGroupById(groupId);
-                return `<li>${escapeHtml(group.name.trim())}</li>`;
+            <h3 class="result-rank">Values snapshot</h3>
+            <ul class="result-list result-list-visual">
+              ${shareMarkers.map((marker) => {
+                return `
+                  <li class="result-list-item-visual">
+                    <span class="result-list-item-pill" style="--signal-color: ${marker.color}">
+                      <span class="result-list-item-mark">${marker.emoji}</span>
+                      <span>${escapeHtml(marker.label)}</span>
+                    </span>
+                  </li>
+                `;
               }).join("")}
-            </ol>
+            </ul>
+            <div class="values-snapshot-actions">
+              <span class="values-snapshot-share-label">Share:</span>
+              <button class="button button-secondary" data-action="copy-share">Copy as text</button>
+              <button class="button button-secondary" data-action="download-share-image">Download as PNG</button>
+            </div>
           </div>
 
           <div class="summary-card">
-            <h3 class="result-rank">Concise summary</h3>
+            <h3 class="result-rank">Recap</h3>
             ${summary.map((paragraph) => `<p>${paragraph}</p>`).join("")}
           </div>
         </div>
 
         <div class="results-list">
-          ${state.rankedGroupIds.map((groupId, index) => renderResultCard(groupId, index)).join("")}
+          ${state.finalGroupIds.map((groupId) => renderResultCard(groupId)).join("")}
         </div>
 
         <div class="button-row">
@@ -900,21 +928,21 @@ function renderValueCard(value, selectedList, action, limitReached = false) {
 }
 
 function renderGroupCard(group, index) {
-  const memberCount = getGroupMembers(group.id).length;
+  const members = getGroupMembers(group.id);
+  const memberCount = members.length;
   const canRemove = state.groups.length > 1;
+  const inputValue = group.name.trim() || members[0] || "";
+  const placeholder = members[0] || "Name this group";
 
   return `
     <article class="group-card">
       <div class="group-card-head">
-        <div>
-          <h3 class="group-title">Group ${index + 1}</h3>
-          <p class="group-note">${memberCount} ${memberCount === 1 ? "value" : "values"} assigned</p>
-        </div>
+        <h3 class="group-title">Group ${index + 1}</h3>
         <button class="button button-ghost button-inline" data-action="remove-group" data-group-id="${group.id}" ${canRemove ? "" : "disabled"}>
           Remove
         </button>
       </div>
-      <label class="group-label" for="name-${group.id}">Final value or phrase</label>
+      <label class="sr-only" for="name-${group.id}">Group name</label>
       <input
         id="name-${group.id}"
         class="text-input"
@@ -922,18 +950,18 @@ function renderGroupCard(group, index) {
         maxlength="80"
         data-action="rename-group"
         data-group-id="${group.id}"
-        value="${escapeAttribute(group.name)}"
-        placeholder="Example: Inclusion"
+        value="${escapeAttribute(inputValue)}"
+        placeholder="${escapeAttribute(placeholder)}"
       />
       <div class="group-dropzone" data-drop-group="${group.id}">
         <div class="dropzone-head">
-          <h4 class="dropzone-title">Values</h4>
+          <h4 class="dropzone-title">${memberCount === 1 ? "1 value" : `${memberCount} values`}</h4>
           <span class="dropzone-count">${memberCount}</span>
         </div>
         <div class="dropzone-items">
           ${
             memberCount
-              ? getGroupMembers(group.id).map((value) => renderDragPill(value)).join("")
+              ? members.map((value) => renderDragPill(value)).join("")
               : '<p class="dropzone-empty">Drag values here.</p>'
           }
         </div>
@@ -955,49 +983,35 @@ function renderDragPill(value) {
   `;
 }
 
-function renderRankItem(groupId, index) {
-  const group = getGroupById(groupId);
+function renderFinalChoiceItem(groupId) {
+  const groupName = getGroupResolvedName(groupId);
   const members = getGroupMembers(groupId);
-  const note = members.length === 1 ? "Single-value group" : `${members.length} values grouped`;
+  const isSelected = state.finalGroupIds.includes(groupId);
 
   return `
     <div class="rank-item">
-      <div class="rank-position">${index + 1}</div>
+      <button
+        type="button"
+        class="rank-position ${isSelected ? "is-selected" : "is-inactive"}"
+        data-action="toggle-final-group"
+        data-group-id="${groupId}"
+        aria-pressed="${isSelected}"
+        aria-label="${isSelected ? "Unselect" : "Select"} ${escapeAttribute(groupName)}"
+      >
+        ${isSelected ? "✓" : "+"}
+      </button>
       <div class="rank-content">
-        <p class="rank-value">${escapeHtml(group.name.trim())}</p>
-        <p class="rank-note">${note}</p>
+        <p class="rank-value">${escapeHtml(groupName)}</p>
         <div class="chip-list chip-list-compact">
           ${members.map((value) => `<span class="chip">${escapeHtml(value)}</span>`).join("")}
         </div>
-      </div>
-      <div class="rank-actions">
-        <button
-          class="icon-button"
-          data-action="move-rank"
-          data-group-id="${groupId}"
-          data-direction="up"
-          aria-label="Move ${escapeAttribute(group.name.trim())} up"
-          ${index === 0 ? "disabled" : ""}
-        >
-          ↑
-        </button>
-        <button
-          class="icon-button"
-          data-action="move-rank"
-          data-group-id="${groupId}"
-          data-direction="down"
-          aria-label="Move ${escapeAttribute(group.name.trim())} down"
-          ${index === state.rankedGroupIds.length - 1 ? "disabled" : ""}
-        >
-          ↓
-        </button>
       </div>
     </div>
   `;
 }
 
-function renderReflectionCard(groupId, index) {
-  const group = getGroupById(groupId);
+function renderReflectionCard(groupId) {
+  const groupName = getGroupResolvedName(groupId);
   const members = getGroupMembers(groupId);
   const reflection = state.reflections[groupId] || { meaning: "", honored: "", missing: "" };
 
@@ -1005,48 +1019,47 @@ function renderReflectionCard(groupId, index) {
     <article class="reflection-card">
       <div class="reflection-head">
         <div>
-          <h3 class="reflection-value">${escapeHtml(group.name.trim())}</h3>
+          <h3 class="reflection-value">${escapeHtml(groupName)}</h3>
           <div class="chip-list chip-list-compact">
             ${members.map((value) => `<span class="chip">${escapeHtml(value)}</span>`).join("")}
           </div>
         </div>
-        <div class="reflection-rank">Rank #${index + 1}</div>
       </div>
 
       <div class="field-group">
-        <label for="meaning-${groupId}">What does this value mean to you in your life or work?</label>
-        <textarea id="meaning-${groupId}" class="text-area" data-action="update-reflection" data-group-id="${groupId}" data-field="meaning" placeholder="Describe what this value means in your day-to-day life or work.">${escapeHtml(reflection.meaning)}</textarea>
+        <label for="meaning-${groupId}">How do you define this value in your own words?</label>
+        <textarea id="meaning-${groupId}" class="text-area" data-action="update-reflection" data-group-id="${groupId}" data-field="meaning" placeholder="Your answer here (optional)">${escapeHtml(reflection.meaning)}</textarea>
       </div>
 
       <div class="field-group">
-        <label for="honored-${groupId}">What does it look like when this value is honored?</label>
-        <textarea id="honored-${groupId}" class="text-area" data-action="update-reflection" data-group-id="${groupId}" data-field="honored" placeholder="Describe the signals, behaviors, or conditions that show this value is present.">${escapeHtml(reflection.honored)}</textarea>
+        <label for="honored-${groupId}">What helps you recognize that this value is present?</label>
+        <textarea id="honored-${groupId}" class="text-area" data-action="update-reflection" data-group-id="${groupId}" data-field="honored" placeholder="Your answer here (optional)">${escapeHtml(reflection.honored)}</textarea>
       </div>
 
       <div class="field-group">
-        <label for="missing-${groupId}">What does it look like when this value is missing?</label>
-        <textarea id="missing-${groupId}" class="text-area" data-action="update-reflection" data-group-id="${groupId}" data-field="missing" placeholder="Describe the friction, absence, or warning signs you notice when this value is not present.">${escapeHtml(reflection.missing)}</textarea>
+        <label for="missing-${groupId}">What tells you this value is missing or being compromised?</label>
+        <textarea id="missing-${groupId}" class="text-area" data-action="update-reflection" data-group-id="${groupId}" data-field="missing" placeholder="Your answer here (optional)">${escapeHtml(reflection.missing)}</textarea>
       </div>
     </article>
   `;
 }
 
-function renderResultCard(groupId, index) {
-  const group = getGroupById(groupId);
+function renderResultCard(groupId) {
+  const groupName = getGroupResolvedName(groupId);
   const members = getGroupMembers(groupId);
   const reflection = state.reflections[groupId] || {};
 
   return `
     <article class="result-card">
-      <h3 class="section-title">${index + 1}. ${escapeHtml(group.name.trim())}</h3>
+      <h3 class="section-title">${escapeHtml(groupName)}</h3>
       <div class="chip-list chip-list-compact">
         ${members.map((value) => `<span class="chip">${escapeHtml(value)}</span>`).join("")}
       </div>
-      <h4>What it means to you in your life or work</h4>
+      <h4>How you define it</h4>
       <p>${formatReflection(reflection.meaning)}</p>
-      <h4>When it is honored</h4>
+      <h4>How you recognize it</h4>
       <p>${formatReflection(reflection.honored)}</p>
-      <h4>When it is missing</h4>
+      <h4>How you know it is missing</h4>
       <p>${formatReflection(reflection.missing)}</p>
     </article>
   `;
@@ -1081,7 +1094,8 @@ function handleClick(event) {
         highlightedValues: [],
         shortlistedValues: [],
         assignments: {},
-        rankedGroupIds: [],
+        finalGroupIds: [],
+        hasEditedFinalSelection: false,
       }));
       break;
     case "clear-shortlist":
@@ -1089,7 +1103,8 @@ function handleClick(event) {
         ...current,
         shortlistedValues: [],
         assignments: {},
-        rankedGroupIds: [],
+        finalGroupIds: [],
+        hasEditedFinalSelection: false,
       }));
       break;
     case "add-group":
@@ -1098,14 +1113,23 @@ function handleClick(event) {
     case "remove-group":
       removeGroup(groupId);
       break;
-    case "move-rank":
-      moveRank(groupId, target.dataset.direction);
+    case "auto-group-remaining":
+      autoGroupRemaining();
+      break;
+    case "toggle-final-group":
+      toggleFinalGroup(groupId);
       break;
     case "copy-results":
       copyResults();
       break;
+    case "copy-share":
+      copyShareText();
+      break;
     case "download-results":
       downloadResults();
+      break;
+    case "download-share-image":
+      downloadShareImage();
       break;
     case "restart":
       restart();
@@ -1257,8 +1281,16 @@ function goToStep(step) {
       showToast("Highlight at least one value before moving to the shortlist.");
     } else if (step === "group") {
       showToast("Choose at least a few shortlisted values before grouping them.");
-    } else {
+    } else if (step === "select") {
       showToast("Assign every shortlisted value to a named group before moving ahead.");
+    } else if (step === "reflect") {
+      showToast(
+        groupingReady(state)
+          ? "Choose at least 1 and no more than 5 final values before moving ahead."
+          : "Finish grouping your values before moving ahead."
+      );
+    } else {
+      showToast("Complete your final value choices before moving ahead.");
     }
     return;
   }
@@ -1278,7 +1310,11 @@ function reachableStep(candidate, snapshot) {
   }
 
   if (groupingReady(snapshot)) {
-    allowed.push("rank", "reflect", "results");
+    allowed.push("select");
+  }
+
+  if (finalSelectionReady(snapshot)) {
+    allowed.push("reflect", "results");
   }
 
   return allowed.includes(candidate) ? candidate : allowed[allowed.length - 1];
@@ -1361,23 +1397,55 @@ function removeGroup(groupId) {
   });
 }
 
-function moveRank(groupId, direction) {
-  const currentIndex = state.rankedGroupIds.indexOf(groupId);
-  if (currentIndex === -1) {
+function autoGroupRemaining() {
+  const unassigned = getUnassignedValues(state);
+
+  if (!unassigned.length) {
     return;
   }
 
-  const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-  if (nextIndex < 0 || nextIndex >= state.rankedGroupIds.length) {
+  setState((current) => {
+    const nextGroups = [...current.groups];
+    const nextAssignments = { ...current.assignments };
+    const availableGroupIds = nextGroups
+      .filter((group) => getGroupMembers(group.id, current).length === 0)
+      .map((group) => group.id);
+
+    unassigned.forEach((value) => {
+      let groupId = availableGroupIds.shift();
+
+      if (!groupId) {
+        const nextId = nextGroupId(nextGroups);
+        nextGroups.push({ id: nextId, name: "" });
+        groupId = nextId;
+      }
+
+      nextAssignments[value] = groupId;
+    });
+
+    return {
+      ...current,
+      groups: nextGroups,
+      assignments: nextAssignments,
+    };
+  });
+}
+
+function toggleFinalGroup(groupId) {
+  const activeGroupIds = getActiveGroups(state).map((group) => group.id);
+  const isSelected = state.finalGroupIds.includes(groupId);
+
+  if (!isSelected && state.finalGroupIds.length >= 5) {
+    showToast("Choose up to 5 final values.");
     return;
   }
-
-  const nextRanked = [...state.rankedGroupIds];
-  [nextRanked[currentIndex], nextRanked[nextIndex]] = [nextRanked[nextIndex], nextRanked[currentIndex]];
 
   setState((current) => ({
     ...current,
-    rankedGroupIds: nextRanked,
+    hasEditedFinalSelection: true,
+    finalGroupIds: isSelected
+      ? current.finalGroupIds.filter((id) => id !== groupId)
+      : activeGroupIds.filter((id) => id === groupId || current.finalGroupIds.includes(id)),
   }));
 }
 
@@ -1396,9 +1464,26 @@ function getUnassignedValues(snapshot = state) {
 function groupingReady(snapshot = state) {
   const activeGroups = getActiveGroups(snapshot);
   const allAssigned = snapshot.shortlistedValues.length > 0 && getUnassignedValues(snapshot).length === 0;
-  const namedGroups = activeGroups.every((group) => group.name.trim());
+  const namedGroups = activeGroups.every((group) => getGroupResolvedName(group.id, snapshot));
 
   return allAssigned && activeGroups.length > 0 && namedGroups;
+}
+
+function needsFinalSelection(snapshot = state) {
+  return getActiveGroups(snapshot).length > 5;
+}
+
+function finalSelectionReady(snapshot = state) {
+  if (!groupingReady(snapshot)) {
+    return false;
+  }
+
+  const activeGroupIds = getActiveGroups(snapshot).map((group) => group.id);
+  return (
+    snapshot.finalGroupIds.length >= 1 &&
+    snapshot.finalGroupIds.length <= 5 &&
+    snapshot.finalGroupIds.every((groupId) => activeGroupIds.includes(groupId))
+  );
 }
 
 function groupingStatus(snapshot = state) {
@@ -1413,7 +1498,7 @@ function groupingStatus(snapshot = state) {
     return "Create at least one group";
   }
 
-  if (activeGroups.some((group) => !group.name.trim())) {
+  if (activeGroups.some((group) => !getGroupResolvedName(group.id, snapshot))) {
     return "Name each active group before continuing";
   }
 
@@ -1424,15 +1509,25 @@ function getGroupById(groupId, snapshot = state) {
   return snapshot.groups.find((group) => group.id === groupId) || { id: groupId, name: "" };
 }
 
+function getGroupResolvedName(groupId, snapshot = state) {
+  const group = getGroupById(groupId, snapshot);
+  const explicitName = group.name.trim();
+  if (explicitName) {
+    return explicitName;
+  }
+
+  const members = getGroupMembers(groupId, snapshot);
+  return members[0] || "";
+}
+
 function buildSummary() {
-  const rankedGroups = state.rankedGroupIds.map((groupId) => getGroupById(groupId));
-  const topThree = rankedGroups.slice(0, 3).map((group) => group.name.trim());
-  const flattenedValues = state.rankedGroupIds.flatMap((groupId) => getGroupMembers(groupId));
-  const allReflections = state.rankedGroupIds
+  const finalValues = state.finalGroupIds.map((groupId) => getGroupResolvedName(groupId));
+  const flattenedValues = state.finalGroupIds.flatMap((groupId) => getGroupMembers(groupId));
+  const allReflections = state.finalGroupIds
     .map((groupId) => state.reflections[groupId] || {})
     .map((reflection) => `${reflection.meaning || ""} ${reflection.honored || ""}`.toLowerCase())
     .join(" ");
-  const missingReflections = state.rankedGroupIds
+  const missingReflections = state.finalGroupIds
     .map((groupId) => state.reflections[groupId] || {})
     .map((reflection) => reflection.missing || "")
     .join(" ")
@@ -1442,8 +1537,8 @@ function buildSummary() {
   const missingThemes = detectThemes(missingReflections);
   const workNeeds = deriveWorkNeeds(flattenedValues);
 
-  const firstParagraph = topThree.length
-    ? `Your final values profile centers on ${naturalList(topThree)}. These appear to be the strongest anchors for how you define alignment in your life or work right now.`
+  const firstParagraph = finalValues.length
+    ? `Your final values profile centers on ${naturalList(finalValues)}. These appear to be the clearest anchors for how you define alignment in your life or work right now.`
     : "Your final categories capture the values that currently matter most to you right now.";
 
   const secondParagraph = honoredThemes.length
@@ -1459,6 +1554,23 @@ function buildSummary() {
     : `Taken together, the right environments for you are likely to make your priorities visible in day-to-day life, not just in stated ideals.`;
 
   return [firstParagraph, secondParagraph, thirdParagraph, fourthParagraph];
+}
+
+function getShareMarkers(snapshot = state) {
+  return snapshot.finalGroupIds.map((groupId, index) => ({
+    ...SHARE_MARKERS[index % SHARE_MARKERS.length],
+    label: getGroupResolvedName(groupId, snapshot),
+  }));
+}
+
+function buildShareText(snapshot = state) {
+  const markers = getShareMarkers(snapshot);
+
+  return [
+    "Values Exercise",
+    markers.map((marker) => marker.emoji).join(""),
+    markers.map((marker) => marker.label).join(" • "),
+  ].join("\n");
 }
 
 function detectThemes(text) {
@@ -1549,6 +1661,20 @@ function copyResults() {
   fallbackCopy(text);
 }
 
+function copyShareText() {
+  const text = buildShareText();
+
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => showToast("Share text copied to your clipboard."))
+      .catch(() => fallbackCopy(text));
+    return;
+  }
+
+  fallbackCopy(text);
+}
+
 function fallbackCopy(text) {
   const helper = document.createElement("textarea");
   helper.value = text;
@@ -1583,16 +1709,114 @@ function downloadResults() {
   showToast("Downloaded your results as a text file.");
 }
 
+async function downloadShareImage() {
+  const markers = getShareMarkers();
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    showToast("Your browser could not create the share image.");
+    return;
+  }
+
+  const width = 1400;
+  const height = 900;
+  canvas.width = width;
+  canvas.height = height;
+
+  if (document.fonts && document.fonts.ready) {
+    try {
+      await document.fonts.ready;
+    } catch (error) {
+      // Font readiness is helpful but not required for export.
+    }
+  }
+
+  context.fillStyle = "#fff7ef";
+  context.fillRect(0, 0, width, height);
+
+  const gradient = context.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "#fff8f0");
+  gradient.addColorStop(1, "#f5e7d7");
+  context.fillStyle = gradient;
+  roundRect(context, 70, 70, width - 140, height - 140, 42);
+  context.fill();
+
+  context.fillStyle = "#cb4a20";
+  roundRect(context, 70, 70, width - 140, 18, 18);
+  context.fill();
+
+  context.fillStyle = "#70564a";
+  context.font = "700 28px Inter, system-ui, sans-serif";
+  context.fillText("Values Exercise", 120, 160);
+
+  context.fillStyle = "#1e130f";
+  context.font = "700 78px Inter, system-ui, sans-serif";
+  wrapCanvasText(context, "My values snapshot", 120, 250, width - 240, 92);
+
+  const tileSize = 118;
+  const tileGap = 26;
+  const rowWidth = markers.length * tileSize + Math.max(markers.length - 1, 0) * tileGap;
+  let tileX = (width - rowWidth) / 2;
+
+  markers.forEach((marker) => {
+    context.fillStyle = marker.color;
+    roundRect(context, tileX, 355, tileSize, tileSize, 28);
+    context.fill();
+
+    context.fillStyle = "#ffffff";
+    context.font = "700 54px Inter, system-ui, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(marker.emoji, tileX + tileSize / 2, 355 + tileSize / 2 + 4);
+    tileX += tileSize + tileGap;
+  });
+
+  context.textAlign = "left";
+  context.textBaseline = "alphabetic";
+  context.fillStyle = "#1e130f";
+  context.font = "700 34px Inter, system-ui, sans-serif";
+  context.fillText("Final values", 120, 565);
+
+  context.font = "500 30px Inter, system-ui, sans-serif";
+  const labels = markers.map((marker) => marker.label);
+  const labelLines = chunkLabels(labels, 2);
+  labelLines.forEach((line, index) => {
+    context.fillText(line.join(" • "), 120, 625 + index * 46);
+  });
+
+  context.fillStyle = "#70564a";
+  context.font = "500 24px Inter, system-ui, sans-serif";
+  context.fillText(buildShareText().split("\n")[1], 120, 760);
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      showToast("Your browser could not create the share image.");
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `values-share-${stamp}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast("Downloaded your share image.");
+  }, "image/png");
+}
+
 function resultsText() {
   const summary = buildSummary();
   const lines = [
     "Professional Values Exercise",
     "",
-    "Ranked Final Values",
-    ...state.rankedGroupIds.map((groupId, index) => {
-      const group = getGroupById(groupId);
+    "Final Values",
+    ...state.finalGroupIds.map((groupId) => {
       const members = getGroupMembers(groupId);
-      return `${index + 1}. ${group.name.trim()} (${members.join(", ")})`;
+      return `- ${getGroupResolvedName(groupId)} (${members.join(", ")})`;
     }),
     "",
     "Summary",
@@ -1601,20 +1825,65 @@ function resultsText() {
     "Reflections",
   ];
 
-  state.rankedGroupIds.forEach((groupId, index) => {
-    const group = getGroupById(groupId);
+  state.finalGroupIds.forEach((groupId) => {
     const members = getGroupMembers(groupId);
     const reflection = state.reflections[groupId] || {};
 
     lines.push("");
-    lines.push(`${index + 1}. ${group.name.trim()}`);
+    lines.push(getGroupResolvedName(groupId));
     lines.push(`Grouped values: ${members.join(", ") || "-"}`);
-    lines.push(`What it means to you in your life or work: ${reflection.meaning || "-"}`);
-    lines.push(`When it is honored: ${reflection.honored || "-"}`);
-    lines.push(`When it is missing: ${reflection.missing || "-"}`);
+    lines.push(`How you define it: ${reflection.meaning || "-"}`);
+    lines.push(`How you recognize it: ${reflection.honored || "-"}`);
+    lines.push(`How you know it is missing: ${reflection.missing || "-"}`);
   });
 
   return lines.join("\n");
+}
+
+function roundRect(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
+}
+
+function wrapCanvasText(context, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(" ");
+  let line = "";
+  let currentY = y;
+
+  words.forEach((word) => {
+    const testLine = line ? `${line} ${word}` : word;
+    if (context.measureText(testLine).width > maxWidth && line) {
+      context.fillText(line, x, currentY);
+      line = word;
+      currentY += lineHeight;
+      return;
+    }
+
+    line = testLine;
+  });
+
+  if (line) {
+    context.fillText(line, x, currentY);
+  }
+}
+
+function chunkLabels(items, size) {
+  const chunks = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
 }
 
 function restart() {
