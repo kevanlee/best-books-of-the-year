@@ -681,10 +681,9 @@ function renderGroup() {
       <div class="panel-inner">
         <div class="panel-hero">
           <p class="eyebrow eyebrow-pill">Step 3</p>
-          <h2 class="panel-title">Group related values.</h2>
+          <h2 class="panel-title">Group related values & rename.</h2>
           <p class="panel-copy">
-            Drag values into groups. Belonging, connection, and togetherness might become Inclusion. A single value
-            can stand on its own.
+            Drag values into related / alike groups and rename them. For example, you might group Belonging, Connection, and Togetherness and rename it INCLUSION. If you have standalone values, they can be in groups alone.
           </p>
           <p class="panel-copy">${status}</p>
         </div>
