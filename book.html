@@ -3,14 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Books of the Year</title>
-    <meta
-      name="description"
-      content="A local-first prototype for aggregating the best books of 2025 across editorial lists, awards, and longlists."
-    />
+    <title>Book Detail | Books of the Year</title>
+    <meta name="description" content="Book detail view for the Books of the Year prototype." />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body data-page="home">
+  <body data-page="book">
     <div class="page-shell">
       <header class="site-header">
         <div class="topbar">
@@ -24,7 +21,7 @@
             <a href="books.html">Books</a>
             <a href="lists.html">Lists</a>
             <a href="genres.html">Genres</a>
-            <a href="index.html#best-of" aria-current="page">Best Of</a>
+            <a href="index.html#best-of">Best Of</a>
           </nav>
           <div class="utility-nav">
             <a href="search.html">Search</a>
@@ -35,12 +32,12 @@
       <main id="page-root">
         <section class="loading-shell" aria-live="polite">
           <p class="eyebrow">Loading</p>
-          <h1 class="loading-title">Building the 2025 books index…</h1>
-          <p class="loading-copy">Pulling together rankings, lists, genres, and source context.</p>
+          <h1 class="loading-title">Opening book page…</h1>
+          <p class="loading-copy">Gathering list placements, source context, and related discovery paths.</p>
         </section>
       </main>
       <footer class="site-footer">
-        <p>Books of the Year is a local-first editorial/database prototype for ranking and discovering books.</p>
+        <p>Book detail pages combine aggregate ranking, source context, and related discovery paths.</p>
       </footer>
     </div>
     <script src="app-data.js"></script>
