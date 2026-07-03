@@ -730,7 +730,7 @@
               </div>
             </div>
             <div class="stack-list">
-              <div class="mini-step"><strong>1.</strong><span>It splits the pasted text into lines, then looks for title/author separators like em dashes and “by”.</span></div>
+              <div class="mini-step"><strong>1.</strong><span>It reads one-line entries with separators like em dashes and “by,” and it can also pair multi-line review blurbs where a title is followed by an author/publisher line.</span></div>
               <div class="mini-step"><strong>2.</strong><span>It tries to infer genre from the text itself or from a matched canonical book already in the dataset.</span></div>
               <div class="mini-step"><strong>3.</strong><span>You can still edit, accept, or reject every row before anything is saved.</span></div>
             </div>
@@ -1342,13 +1342,87 @@
   }
 
   function parseImportedText(text, options) {
-    return text
+    const lines = text
       .split("\n")
       .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => parseImportedLine(line, options))
+      .filter(Boolean);
+    const structuredEntries = parseStructuredBestOfLines(lines, options);
+    return (structuredEntries.length ? structuredEntries : lines.map((line) => parseImportedLine(line, options)))
       .filter((entry) => entry && entry.title)
       .map((entry) => seedDraftEntry(entry));
+  }
+
+  function parseStructuredBestOfLines(lines, options) {
+    const entries = [];
+    const stageKey = options.stageKey || "list";
+
+    lines.forEach((line, index) => {
+      if (!looksLikeContributorLine(line)) {
+        return;
+      }
+
+      const titleLine = findNearestTitleLine(lines, index);
+      if (!titleLine) {
+        return;
+      }
+
+      const author = cleanImportedFragment(line.replace(/\s*\([^)]*\)\s*$/, ""));
+      const parsedTitle = parseImportedLine(titleLine, options);
+      if (!parsedTitle?.title || entries.some((entry) => normalizeText(entry.title) === normalizeText(parsedTitle.title))) {
+        return;
+      }
+
+      entries.push({
+        ...parsedTitle,
+        status: "accepted",
+        stageKey,
+        author,
+        rawLine: `${titleLine} — ${line}`
+      });
+    });
+
+    return entries;
+  }
+
+  function findNearestTitleLine(lines, authorIndex) {
+    for (let index = authorIndex - 1; index >= 0; index -= 1) {
+      const line = lines[index];
+      if (isImportNoiseLine(line)) {
+        continue;
+      }
+      return line;
+    }
+    return "";
+  }
+
+  function isImportNoiseLine(line) {
+    const normalized = normalizeText(line);
+    return (
+      /^(read|buy|shop|purchase|order)\b/.test(normalized) ||
+      normalized.includes("full review") ||
+      normalized.includes("pw talks with") ||
+      normalized.length > 120
+    );
+  }
+
+  function looksLikeContributorLine(line) {
+    const trimmed = String(line || "").trim();
+    if (!trimmed || isImportNoiseLine(trimmed)) {
+      return false;
+    }
+    if (!/\([^)]{2,80}\)\s*$/.test(trimmed)) {
+      return false;
+    }
+
+    const contributorText = trimmed.replace(/\s*\([^)]*\)\s*$/, "").replace(/,?\s*\btrans\..*$/i, "").trim();
+    return looksLikeAuthor(contributorText);
+  }
+
+  function normalizeText(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
   }
 
   function parseImportedLine(line, options) {
@@ -1435,7 +1509,8 @@
   }
 
   function looksLikeAuthor(value) {
-    return /^[A-Z][A-Za-z'.-]+(?:\s+[A-Z][A-Za-z'.-]+){0,3}$/.test(String(value || "").trim());
+    const normalized = String(value || "").replace(/\s+(?:and|&)\s+/gi, " ").trim();
+    return /^[A-Z][A-Za-z'.-]+(?:\s+[A-Z][A-Za-z'.-]+){0,5}$/.test(normalized);
   }
 
   function inferDraftScope(entries) {
