@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Search | Books of the Year</title>
-    <meta name="description" content="Public search for the Books of the Year prototype." />
+    <title>Awards | Books of the Year</title>
+    <meta name="description" content="Award lists, longlists, and winners tracked for Books of the Year." />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body data-page="search">
+  <body data-page="awards">
     <div class="page-shell">
       <header class="site-header">
         <div class="topbar">
@@ -22,10 +22,10 @@
             <a href="books.html">Books</a>
             <a href="genres.html">Genres</a>
             <a href="lists.html">Lists</a>
-            <a href="awards.html">Awards</a>
+            <a href="awards.html" aria-current="page">Awards</a>
           </nav>
           <div class="utility-nav">
-            <a href="search.html" aria-current="page">Search</a>
+            <a href="search.html">Search</a>
             <a href="admin.html">Admin</a>
           </div>
         </div>
@@ -33,15 +33,15 @@
       <main id="page-root">
         <section class="loading-shell" aria-live="polite">
           <p class="eyebrow">Loading</p>
-          <h1 class="loading-title">Preparing search…</h1>
-          <p class="loading-copy">Indexing books, lists, source names, and genre pathways.</p>
+          <h1 class="loading-title">Opening awards and longlists…</h1>
+          <p class="loading-copy">Collecting prize sets, longlists, and related book entries.</p>
         </section>
       </main>
       <footer class="site-footer">
-        <p>Search is built for discovery across books, lists, genres, and source signals.</p>
+        <p>Books of the Year is a local-first editorial/database prototype for ranking and discovering books.</p>
       </footer>
     </div>
     <script src="app-data.js"></script>
     <script src="app.js"></script>
   </body>
-  </html>
+</html>

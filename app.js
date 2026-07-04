@@ -26,6 +26,8 @@
     renderHome();
   } else if (page === "books") {
     renderBooksIndex();
+  } else if (page === "awards") {
+    renderAwardsIndex();
   } else if (page === "lists") {
     renderListsIndex();
   } else if (page === "genres") {
@@ -129,9 +131,10 @@
     const activeGenre = params.get("genre") || "all";
     const books = getFilteredBooks(activeGenre);
     const latestLists = derived.listStats
-      .slice()
+      .filter((item) => item.source.type !== "Award" && item.list.kind !== "Award" && item.list.kind !== "Longlist")
       .sort((left, right) => new Date(right.list.updatedAt) - new Date(left.list.updatedAt))
-      .slice(0, 5);
+      .slice(0, 4);
+    const latestAwards = getSortedAwardLists("latest").slice(0, 2);
 
     root.innerHTML = `
       <section class="masthead masthead--single" id="best-of">
@@ -154,7 +157,6 @@
           <section class="section panel" id="books">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Ranking</p>
               <h2 class="section-title">2025 aggregate</h2>
             </div>
           </div>
@@ -163,7 +165,12 @@
           </div>
             ${
               books.length
-                ? `<ol class="ranking-list">${books.slice(0, 8).map((item) => renderRankingRow(item)).join("")}</ol>`
+                ? `
+                  <ol class="ranking-list">${books.slice(0, 8).map((item) => renderRankingRow(item)).join("")}</ol>
+                  <div class="button-row button-row--end">
+                    <a class="ghost-button" href="books.html">See more books</a>
+                  </div>
+                `
                 : `<div class="empty-state panel-subtle"><p>No books match this filter yet.</p></div>`
             }
           </section>
@@ -173,13 +180,28 @@
           <section class="section panel" id="lists">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">Just added</p>
                 <h2 class="section-title">Latest lists</h2>
               </div>
-              <a class="text-link" href="lists.html">Browse all lists</a>
             </div>
             <div class="stack-list">
-              ${latestLists.map((item) => renderPopularListRow(item, true)).join("")}
+              ${latestLists.map((item) => renderLatestListCard(item)).join("")}
+            </div>
+            <div class="button-row button-row--end">
+              <a class="ghost-button" href="lists.html">See all lists</a>
+            </div>
+          </section>
+
+          <section class="section panel" id="awards">
+            <div class="section-heading">
+              <div>
+                <h2 class="section-title">Awards</h2>
+              </div>
+            </div>
+            <div class="stack-list">
+              ${latestAwards.map((item) => renderLatestListCard(item)).join("")}
+            </div>
+            <div class="button-row button-row--end">
+              <a class="ghost-button" href="awards.html">See all awards</a>
             </div>
           </section>
         </aside>
@@ -188,7 +210,6 @@
       <section class="section panel section--full" id="genres">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Browse</p>
             <h2 class="section-title">Genres</h2>
           </div>
         </div>
@@ -292,6 +313,50 @@
     `;
   }
 
+  function renderAwardsIndex() {
+    const sortKey = params.get("sort") || "latest";
+    const awards = getSortedAwardLists(sortKey);
+
+    root.innerHTML = `
+      <section class="page-header panel">
+        <div class="page-header-main">
+          <p class="eyebrow">Awards</p>
+          <h1 class="detail-title">Award lists and longlists</h1>
+          <p class="summary">
+            Browse the prizes, shortlists, winners, and longlists that feed the yearly book index, separated from the broader editorial list archive.
+          </p>
+          <div class="meta-strip meta-strip--dense">
+            <span>${awards.length} award-related lists</span>
+            <span>Longlists, winners, and prize sets</span>
+            <span>Updated through 2025</span>
+          </div>
+        </div>
+        <div class="page-header-side">
+          <div class="score-panel">
+            <span class="score-label">Coverage</span>
+            <strong>${awards.length}</strong>
+            <span>award lists tracked</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Browse</p>
+            <h2 class="section-title">All awards</h2>
+          </div>
+          <div class="toolbar">
+            ${renderAwardsIndexSortTabs(sortKey)}
+          </div>
+        </div>
+        <div class="stack-list">
+          ${awards.map((item) => renderPopularListRow(item)).join("")}
+        </div>
+      </section>
+    `;
+  }
+
   function renderGenresIndex() {
     const fallbackGenre = derived.genreStats[0]?.genre.id || "all";
     const activeGenre = params.get("genre") || fallbackGenre;
@@ -354,8 +419,7 @@
     const ranking = derived.bookRanks.find((item) => item.book.slug === slug) || derived.bookRanks[0];
     const book = ranking.book;
     const appearances = ranking.appearances.slice().sort((left, right) => left.list.title.localeCompare(right.list.title));
-    const awardCount = appearances.filter((appearance) => appearance.list.kind === "Award").length;
-    const longlistCount = appearances.filter((appearance) => appearance.list.kind === "Longlist").length;
+    const genreRankings = getGenreRankings(book);
     const related = derived.bookRanks
       .filter((item) => item.book.id !== book.id && item.book.genres.some((genre) => book.genres.includes(genre)))
       .slice(0, 4);
@@ -374,6 +438,9 @@
               ${book.genres.map((genreId) => renderTag(taxonomyById[genreId].name)).join("")}
             </div>
             <p class="summary">${book.blurb}</p>
+            <div class="button-row">
+              <a class="button" href="${buildBuyLink(book)}" target="_blank" rel="noreferrer">Buy this book</a>
+            </div>
             <div class="meta-strip meta-strip--dense">
               <span>${formatMonth(book.published)}</span>
               <span>${book.publisher}</span>
@@ -384,14 +451,24 @@
           <aside class="book-hero-side">
             <div class="score-stack">
               <div class="score-panel">
-                <span class="score-label">Aggregate</span>
-                <strong>#${ranking.rank}</strong>
-                <span>${ranking.listCount} list appearances</span>
+                <span class="score-label">List appearances</span>
+                <strong>${ranking.listCount}</strong>
+                <span>${ranking.listCount === 1 ? "Included on 1 list" : `Included on ${ranking.listCount} lists`}</span>
               </div>
               <div class="score-panel">
-                <span class="score-label">Coverage</span>
-                <strong>${awardCount + longlistCount}</strong>
-                <span>${awardCount} awards and ${longlistCount} longlists</span>
+                <span class="score-label">Aggregate rank</span>
+                <strong>#${ranking.rank}</strong>
+                <span>Across the full 2025 index</span>
+              </div>
+              <div class="score-panel">
+                <span class="score-label">Genre rank</span>
+                <strong>${genreRankings[0] ? `#${genreRankings[0].rank} in ${genreRankings[0].name}` : "Unranked"}</strong>
+                <div class="score-detail-list">
+                  ${genreRankings
+                    .slice(1)
+                    .map((genreRanking) => `<span>#${genreRanking.rank} in ${escapeHtml(genreRanking.name)}</span>`)
+                    .join("")}
+                </div>
               </div>
             </div>
           </aside>
@@ -400,22 +477,6 @@
 
       <section class="detail-grid">
         <div class="detail-main">
-          <section class="section panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">Overview</p>
-                <h2 class="section-title">Why it stands out</h2>
-              </div>
-            </div>
-            <div class="overview-copy">
-              <p class="summary">${book.blurb}</p>
-              <p class="summary summary--small">
-                This title appears across a mix of year-end selections, awards, and longlists, making it one of the
-                clearer consensus books in the 2025 field.
-              </p>
-            </div>
-          </section>
-
           <section class="section panel">
             <div class="section-heading">
               <div>
@@ -554,12 +615,12 @@
 
     root.innerHTML = `
       <section class="search-grid">
-        <aside class="panel">
+        <section class="panel">
           <p class="eyebrow">Search</p>
           <h1 class="search-title">Find titles, authors, lists, genres, and sources.</h1>
-          <form class="search-form" action="search.html" method="get">
-            <label class="field">
-              <span>Query</span>
+          <form class="search-form search-form--inline" action="search.html" method="get">
+            <label class="field search-field">
+              <span class="sr-only">Query</span>
               <input class="input" name="q" type="search" value="${escapeHtml(query)}" placeholder="Northlight, Booker, memoir, Mira Dane..." />
             </label>
             <button class="button" type="submit">Search the index</button>
@@ -573,7 +634,7 @@
               <a class="pill" href="search.html?q=essays">Essays</a>
             </div>
           </div>
-        </aside>
+        </section>
 
         <section class="panel">
           <div class="section-heading">
@@ -1531,6 +1592,18 @@
     return "All Books";
   }
 
+  function getAwardRecognition(appearances) {
+    const awardEntries = appearances.filter((appearance) => appearance.list.kind === "Award" || appearance.list.kind === "Longlist");
+    if (!awardEntries.length) {
+      return null;
+    }
+
+    return {
+      total: awardEntries.length,
+      shortLabel: `On ${awardEntries.length} award ${awardEntries.length === 1 ? "list" : "lists"}`
+    };
+  }
+
   function summarizeDraftEntries(entries, importMode) {
     if (!entries.length) {
       return [];
@@ -1560,6 +1633,24 @@
 
   function clearLocalLibrary() {
     writeAdminStore(getEmptyAdminStore());
+  }
+
+  function getGenreRankings(book) {
+    return book.genres
+      .map((genreId) => {
+        const genreBooks = getFilteredBooks(genreId);
+        const index = genreBooks.findIndex((item) => item.book.id === book.id);
+        if (index === -1 || !taxonomyById[genreId]) {
+          return null;
+        }
+
+        return {
+          id: genreId,
+          name: taxonomyById[genreId].name,
+          rank: index + 1
+        };
+      })
+      .filter(Boolean);
   }
 
   function getFilteredBooks(activeGenre) {
@@ -1601,6 +1692,17 @@
     });
   }
 
+  function getSortedAwardLists(sortKey) {
+    return derived.listStats
+      .filter((item) => item.source.type === "Award" || item.list.kind === "Award" || item.list.kind === "Longlist")
+      .sort((left, right) => {
+        if (sortKey === "title") {
+          return left.list.title.localeCompare(right.list.title);
+        }
+        return new Date(right.list.updatedAt) - new Date(left.list.updatedAt);
+      });
+  }
+
   function renderGenrePills(activeGenre) {
     const items = [
       `<a class="pill ${activeGenre === "all" ? "is-active" : ""}" href="${buildBooksHref("all")}">All genres</a>`
@@ -1616,6 +1718,8 @@
   }
 
   function renderRankingRow(item) {
+    const awardNote = getAwardRecognition(item.appearances);
+
     return `
       <li class="ranking-row is-clickable" data-href="book.html?slug=${item.book.slug}" tabindex="0">
         <div class="ranking-index">#${item.rank}</div>
@@ -1623,18 +1727,17 @@
         <div class="ranking-main">
           <div class="title-row">
             <h3 class="item-title">${item.book.title}</h3>
-            <span class="year-tag">${item.book.year}</span>
           </div>
           <p class="byline">${item.book.author}</p>
-          <p class="meta-line">${formatMonth(item.book.published)} · ${item.book.format} · ${item.book.publisher}</p>
           <div class="pill-row">
+            ${awardNote ? `<span class="status-chip">${escapeHtml(awardNote.shortLabel)}</span>` : ""}
             ${item.book.genres.slice(0, 2).map((genreId) => renderTag(taxonomyById[genreId].name)).join("")}
           </div>
         </div>
         <div class="ranking-side">
           <div class="ranking-tail">
-            <strong>${item.aggregateScore}</strong>
-            <span>${item.listCount} lists</span>
+            <strong>${item.listCount}</strong>
+            <span>${item.listCount === 1 ? "list" : "lists"}</span>
           </div>
         </div>
       </li>
@@ -1673,11 +1776,34 @@
     `;
   }
 
+  function renderLatestListCard(item) {
+    const externalUrl = item.list.url && item.list.url !== "#" ? item.list.url : "";
+
+    return `
+      <article class="latest-list-card is-clickable" data-href="list.html?id=${item.list.id}" tabindex="0">
+        <div class="latest-list-card-head">
+          <strong class="latest-list-source">${item.source.name}</strong>
+          ${externalUrl ? `<a class="text-link latest-list-link" href="${escapeHtml(externalUrl)}" target="_blank" rel="noreferrer">Source link</a>` : ""}
+        </div>
+        <h3 class="item-title">${item.list.title}</h3>
+        <p class="summary summary--small">${item.list.description}</p>
+        <div class="meta-strip meta-strip--dense">
+          <span>${item.entryCount} books</span>
+          <span>Added ${formatDate(item.list.updatedAt)}</span>
+        </div>
+      </article>
+    `;
+  }
+
   function renderGenreCard(item, activeGenre) {
     return `
-      <a class="genre-card ${activeGenre === item.genre.id ? "is-active" : ""}" href="${buildGenresHref(item.genre.id)}">
+      <a
+        class="genre-card ${activeGenre === item.genre.id ? "is-active" : ""}"
+        href="${buildGenresHref(item.genre.id)}"
+        style="${getGenreToneStyle(item.genre.id)}"
+      >
         <strong>${item.genre.name}</strong>
-        <span>${item.count} books in the index</span>
+        <span>${item.count} books</span>
       </a>
     `;
   }
@@ -1692,6 +1818,20 @@
     return tabs
       .map((tab) => {
         const href = `lists.html?sort=${encodeURIComponent(tab.key)}`;
+        return `<a class="chip ${sortKey === tab.key ? "is-active" : ""}" href="${href}">${tab.label}</a>`;
+      })
+      .join("");
+  }
+
+  function renderAwardsIndexSortTabs(sortKey) {
+    const tabs = [
+      { key: "latest", label: "Latest" },
+      { key: "title", label: "Title" }
+    ];
+
+    return tabs
+      .map((tab) => {
+        const href = `awards.html?sort=${encodeURIComponent(tab.key)}`;
         return `<a class="chip ${sortKey === tab.key ? "is-active" : ""}" href="${href}">${tab.label}</a>`;
       })
       .join("");
@@ -2076,8 +2216,27 @@
       .join(" ");
   }
 
+  function getGenreToneStyle(genreId) {
+    const tones = {
+      fiction: { tint: "rgba(240, 236, 229, 0.96)", line: "rgba(112, 94, 71, 0.2)" },
+      "literary-fiction": { tint: "rgba(243, 231, 223, 0.96)", line: "rgba(145, 96, 63, 0.2)" },
+      "historical-fiction": { tint: "rgba(239, 233, 217, 0.96)", line: "rgba(147, 118, 71, 0.2)" },
+      "mystery-thriller": { tint: "rgba(229, 235, 230, 0.96)", line: "rgba(70, 109, 84, 0.18)" },
+      "science-fantasy": { tint: "rgba(229, 235, 245, 0.96)", line: "rgba(63, 87, 145, 0.18)" },
+      "memoir-biography": { tint: "rgba(242, 232, 235, 0.96)", line: "rgba(132, 84, 98, 0.18)" },
+      "history-politics": { tint: "rgba(237, 234, 226, 0.96)", line: "rgba(106, 99, 76, 0.18)" },
+      "essays-culture": { tint: "rgba(241, 235, 226, 0.96)", line: "rgba(150, 114, 79, 0.18)" }
+    };
+    const tone = tones[genreId] || { tint: "rgba(241, 244, 248, 0.94)", line: "rgba(16, 20, 45, 0.12)" };
+    return `--genre-tint:${tone.tint};--genre-line:${tone.line};`;
+  }
+
   function escapeRegExp(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function buildBuyLink(book) {
+    return `https://www.google.com/search?q=${encodeURIComponent(`buy ${book.title} ${book.author}`)}`;
   }
 
   function buildBooksHref(genre) {
