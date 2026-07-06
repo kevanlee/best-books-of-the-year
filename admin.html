@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Admin Importer | Books of the Year</title>
-    <meta name="description" content="Admin ingest prototype for Books of the Year." />
+    <title>Admin | Books of the Year</title>
+    <meta name="description" content="Admin tools for editing books and staging list imports." />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body data-page="admin">
@@ -34,14 +34,19 @@
         <section class="loading-shell" aria-live="polite">
           <p class="eyebrow">Loading</p>
           <h1 class="loading-title">Opening admin tools…</h1>
-          <p class="loading-copy">Setting up import controls, parser previews, and source metadata.</p>
+          <p class="loading-copy">Setting up book editing, staged imports, and Supabase review tools.</p>
         </section>
       </main>
       <footer class="site-footer">
         <p>Admin remains intentionally lightweight: single-user, local-first, and easy to iterate.</p>
       </footer>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="app-data.js"></script>
+    <script src="supabase-client.js"></script>
+    <script src="data-access.js"></script>
+    <script src="admin.js"></script>
     <script src="app.js"></script>
   </body>
   </html>

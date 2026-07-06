@@ -1,17 +1,41 @@
-(function () {
+(async function () {
   const STORAGE_KEY = "books-of-the-year-admin-v1";
-  const seedData = window.BOOKLIST_DATA;
+  const fallbackSeedData = window.BOOKLIST_DATA || { year: new Date().getFullYear() };
   const root = document.getElementById("page-root");
+  const params = new URLSearchParams(window.location.search);
+  const page = document.body.dataset.page || "home";
 
-  if (!seedData || !root) {
+  if (!root) {
     return;
   }
 
-  const adminStore = loadAdminStore();
-  const data = buildMergedData(seedData, adminStore);
+  if (page === "admin" && window.BOOKLIST_ADMIN_APP && typeof window.BOOKLIST_ADMIN_APP.init === "function") {
+    window.BOOKLIST_RUNTIME = {
+      dataSource: window.supabaseClient ? "supabase" : "local",
+      fallbackReason: window.supabaseClient ? "configured" : "missing-config",
+      year: Number(params.get("year")) || null
+    };
+    document.body.dataset.dataSource = window.supabaseClient ? "supabase" : "local";
 
-  const params = new URLSearchParams(window.location.search);
-  const page = document.body.dataset.page || "home";
+    bindInteractiveCards();
+    bindHeaderScrollState();
+    await window.BOOKLIST_ADMIN_APP.init({
+      root,
+      searchParams: params
+    });
+    return;
+  }
+
+  const initialDataResult = await loadInitialData(fallbackSeedData);
+  const adminStore = loadAdminStore();
+  const data = buildMergedData(initialDataResult.data, adminStore);
+
+  window.BOOKLIST_RUNTIME = {
+    dataSource: initialDataResult.source,
+    fallbackReason: initialDataResult.reason || null,
+    year: data.year
+  };
+  document.body.dataset.dataSource = initialDataResult.source;
 
   const taxonomyById = Object.fromEntries(data.taxonomy.map((genre) => [genre.id, genre]));
   const booksById = Object.fromEntries(data.books.map((book) => [book.id, book]));
@@ -19,6 +43,7 @@
   const sourcesById = Object.fromEntries(data.sources.map((source) => [source.id, source]));
   const derived = buildDerivedData();
 
+  syncNavigationYear();
   bindInteractiveCards();
   bindHeaderScrollState();
 
@@ -42,9 +67,24 @@
     renderAdmin();
   }
 
+  async function loadInitialData(seedData) {
+    if (!window.BOOKLIST_DATA_ACCESS || typeof window.BOOKLIST_DATA_ACCESS.loadAppData !== "function") {
+      return {
+        data: seedData,
+        source: "local"
+      };
+    }
+
+    return window.BOOKLIST_DATA_ACCESS.loadAppData({
+      seedData,
+      requestedYear: Number(params.get("year")) || null
+    });
+  }
+
   function buildDerivedData() {
     const entriesByBook = new Map();
     const entriesByList = new Map();
+    const awardsByBook = new Map();
 
     data.entries.forEach((entry) => {
       const list = listsById[entry.listId];
@@ -58,7 +98,7 @@
         ...entry,
         score,
         list,
-        source: sourcesById[list.sourceId],
+        source: sourcesById[list.sourceId] || { id: list.sourceId, name: "Unknown source", type: "", note: "", url: "#" },
         book
       };
 
@@ -73,14 +113,35 @@
       entriesByList.get(list.id).push(enriched);
     });
 
+    (data.awards || []).forEach((recognition) => {
+      const book = booksById[recognition.bookId];
+      if (!book) {
+        return;
+      }
+
+      const enriched = {
+        ...recognition,
+        source: sourcesById[recognition.award?.sourceId] || null,
+        book
+      };
+
+      if (!awardsByBook.has(book.id)) {
+        awardsByBook.set(book.id, []);
+      }
+
+      awardsByBook.get(book.id).push(enriched);
+    });
+
     const bookRanks = data.books
       .map((book) => {
         const appearances = (entriesByBook.get(book.id) || []).slice();
-        const aggregateScore = appearances.reduce((sum, item) => sum + item.score, 0);
-        const listCount = appearances.length;
+        const scoringAppearances = appearances.filter((item) => item.list.countsTowardScore);
+        const aggregateScore = scoringAppearances.reduce((sum, item) => sum + item.score, 0);
+        const listCount = scoringAppearances.length;
         return {
           book,
           appearances,
+          scoringAppearances,
           aggregateScore,
           listCount
         };
@@ -100,7 +161,7 @@
         const entries = (entriesByList.get(list.id) || []).slice();
         return {
           list,
-          source: sourcesById[list.sourceId],
+          source: sourcesById[list.sourceId] || { id: list.sourceId, name: "Unknown source", type: "", note: "", url: "#" },
           entries,
           entryCount: entries.length
         };
@@ -120,6 +181,7 @@
     return {
       entriesByBook,
       entriesByList,
+      awardsByBook,
       bookRanks,
       bookRanksById,
       listStats,
@@ -145,9 +207,7 @@
             editorial lists, awards, and longlists.
           </p>
           <div class="meta-strip">
-            <span>2025</span>
-            <span>2024</span>
-            <span>2023</span>
+            ${renderYearPills("index.html")}
           </div>
         </div>
       </section>
@@ -157,7 +217,7 @@
           <section class="section panel" id="books">
           <div class="section-heading">
             <div>
-              <h2 class="section-title">2025 aggregate</h2>
+              <h2 class="section-title">${data.year} aggregate</h2>
             </div>
           </div>
           <div class="filter-block">
@@ -168,7 +228,7 @@
                 ? `
                   <ol class="ranking-list">${books.slice(0, 8).map((item) => renderRankingRow(item)).join("")}</ol>
                   <div class="button-row button-row--end">
-                    <a class="ghost-button" href="books.html">See more books</a>
+                    <a class="ghost-button" href="${buildBooksHref(activeGenre === "all" ? "" : activeGenre)}">See more books</a>
                   </div>
                 `
                 : `<div class="empty-state panel-subtle"><p>No books match this filter yet.</p></div>`
@@ -187,7 +247,7 @@
               ${latestLists.map((item) => renderLatestListCard(item)).join("")}
             </div>
             <div class="button-row button-row--end">
-              <a class="ghost-button" href="lists.html">See all lists</a>
+              <a class="ghost-button" href="${buildPageHref("lists.html")}">See all lists</a>
             </div>
           </section>
 
@@ -201,7 +261,7 @@
               ${latestAwards.map((item) => renderLatestListCard(item)).join("")}
             </div>
             <div class="button-row button-row--end">
-              <a class="ghost-button" href="awards.html">See all awards</a>
+              <a class="ghost-button" href="${buildPageHref("awards.html")}">See all awards</a>
             </div>
           </section>
         </aside>
@@ -229,7 +289,7 @@
       <section class="page-header panel">
         <div class="page-header-main">
           <p class="eyebrow">Books</p>
-          <h1 class="detail-title">2025 aggregate book index</h1>
+          <h1 class="detail-title">${data.year} aggregate book index</h1>
           <p class="summary">
             Browse the full ranking of books that show up across editorial lists, awards, and longlists, with every source
             carrying the same weight.
@@ -284,7 +344,7 @@
           <div class="meta-strip meta-strip--dense">
             <span>${lists.length} tracked lists</span>
             <span>Best Of, awards, and longlists</span>
-            <span>Updated through 2025</span>
+            <span>Updated through ${data.year}</span>
           </div>
         </div>
         <div class="page-header-side">
@@ -328,7 +388,7 @@
           <div class="meta-strip meta-strip--dense">
             <span>${awards.length} award-related lists</span>
             <span>Longlists, winners, and prize sets</span>
-            <span>Updated through 2025</span>
+            <span>Updated through ${data.year}</span>
           </div>
         </div>
         <div class="page-header-side">
@@ -369,7 +429,7 @@
           <p class="eyebrow">Genres</p>
           <h1 class="detail-title">Browse the taxonomy</h1>
           <p class="summary">
-            Use the normalized genre set to jump into fiction, nonfiction, essays, memoir, and the rest of the 2025 field.
+            Use the normalized genre set to jump into fiction, nonfiction, essays, memoir, and the rest of the ${data.year} field.
           </p>
           <div class="meta-strip meta-strip--dense">
             <span>${derived.genreStats.length} tracked genres</span>
@@ -417,8 +477,16 @@
   function renderBook() {
     const slug = params.get("slug");
     const ranking = derived.bookRanks.find((item) => item.book.slug === slug) || derived.bookRanks[0];
+    if (!ranking) {
+      root.innerHTML = `<section class="panel"><p class="summary">No book data is available for this view yet.</p></section>`;
+      return;
+    }
+
     const book = ranking.book;
     const appearances = ranking.appearances.slice().sort((left, right) => left.list.title.localeCompare(right.list.title));
+    const awardRecognitions = (derived.awardsByBook.get(book.id) || [])
+      .slice()
+      .sort((left, right) => left.award.name.localeCompare(right.award.name));
     const genreRankings = getGenreRankings(book);
     const related = derived.bookRanks
       .filter((item) => item.book.id !== book.id && item.book.genres.some((genre) => book.genres.includes(genre)))
@@ -458,7 +526,7 @@
               <div class="score-panel">
                 <span class="score-label">Aggregate rank</span>
                 <strong>#${ranking.rank}</strong>
-                <span>Across the full 2025 index</span>
+                <span>Across the full ${data.year} index</span>
               </div>
               <div class="score-panel">
                 <span class="score-label">Genre rank</span>
@@ -486,6 +554,7 @@
             </div>
             <div class="appearance-list">
               ${appearances.map((appearance) => renderAppearanceCard(appearance)).join("")}
+              ${awardRecognitions.map((recognition) => renderAwardCard(recognition)).join("")}
             </div>
           </section>
         </div>
@@ -528,6 +597,11 @@
     const id = params.get("id");
     const sortKey = params.get("sort") || "original";
     const stat = derived.listStats.find((item) => item.list.id === id) || derived.listStats[0];
+    if (!stat) {
+      root.innerHTML = `<section class="panel"><p class="summary">No list data is available for this view yet.</p></section>`;
+      return;
+    }
+
     const entries = getSortedListEntries(stat.entries, sortKey);
     const similarLists = derived.listStats
       .filter((item) => item.list.id !== stat.list.id && item.list.scope === stat.list.scope)
@@ -587,7 +661,7 @@
               ${renderTag(stat.list.kind)}
               ${renderTag(stat.list.scope)}
             </div>
-            <a class="text-link" href="${stat.list.url === "#" ? "lists.html" : stat.list.url}">Open source link</a>
+            <a class="text-link" href="${stat.list.url === "#" ? buildPageHref("lists.html") : stat.list.url}">Open source link</a>
           </section>
 
           <section class="section panel">
@@ -618,7 +692,7 @@
         <section class="panel">
           <p class="eyebrow">Search</p>
           <h1 class="search-title">Find titles, authors, lists, genres, and sources.</h1>
-          <form class="search-form search-form--inline" action="search.html" method="get">
+          <form class="search-form search-form--inline" action="${buildPageHref("search.html", { q: null })}" method="get">
             <label class="field search-field">
               <span class="sr-only">Query</span>
               <input class="input" name="q" type="search" value="${escapeHtml(query)}" placeholder="Northlight, Booker, memoir, Mira Dane..." />
@@ -628,10 +702,10 @@
           <div class="helper-box">
             <p class="helper-text">Quick starts</p>
             <div class="pill-row">
-              <a class="pill" href="search.html?q=fiction">Fiction</a>
-              <a class="pill" href="search.html?q=Booker">Booker</a>
-              <a class="pill" href="search.html?q=New Yorker">New Yorker</a>
-              <a class="pill" href="search.html?q=essays">Essays</a>
+              <a class="pill" href="${buildSearchHref("fiction")}">Fiction</a>
+              <a class="pill" href="${buildSearchHref("Booker")}">Booker</a>
+              <a class="pill" href="${buildSearchHref("New Yorker")}">New Yorker</a>
+              <a class="pill" href="${buildSearchHref("essays")}">Essays</a>
             </div>
           </div>
         </section>
@@ -712,7 +786,7 @@
             </div>
           </div>
           <form id="admin-import-form" class="admin-form">
-            <input name="year" type="hidden" value="2025" />
+            <input name="year" type="hidden" value="${data.year}" />
             <input name="importMode" type="hidden" value="${defaultMode}" />
             <div class="admin-mode-tabs" role="tablist" aria-label="Import type">
               <button class="chip ${defaultMode === "list" ? "is-active" : ""}" type="button" data-action="mode-tab" data-mode="list">Lists</button>
@@ -725,7 +799,7 @@
               </label>
               <label class="field">
                 <span>Name of the list</span>
-                <input class="input" name="listName" type="text" placeholder="The New Yorker Best Books of 2025" />
+                <input class="input" name="listName" type="text" placeholder="The New Yorker Best Books of ${data.year}" />
               </label>
               <label class="field">
                 <span>List text</span>
@@ -739,7 +813,7 @@
               </label>
               <label class="field">
                 <span>Award name</span>
-                <input class="input" name="awardName" type="text" placeholder="Booker Prize 2025" />
+                <input class="input" name="awardName" type="text" placeholder="Booker Prize ${data.year}" />
               </label>
               <label class="field">
                 <span>Longlist</span>
@@ -836,14 +910,14 @@
     exampleButton.addEventListener("click", () => {
       const mode = modeInput.value;
       if (mode === "award") {
-        form.elements.awardUrl.value = "https://example.com/booker-prize-2025";
-        form.elements.awardName.value = "Booker Prize 2025";
+        form.elements.awardUrl.value = `https://example.com/booker-prize-${data.year}`;
+        form.elements.awardName.value = `Booker Prize ${data.year}`;
         form.elements.awardLonglist.value = "Northlight — Mira Dane\nLanterns in Winter — Owen Mercer\nHouse of Small Reckonings — Claire Raines";
         form.elements.awardShortlist.value = "Northlight — Mira Dane\nHouse of Small Reckonings — Claire Raines";
         form.elements.awardWinner.value = "Northlight — Mira Dane";
       } else {
-        form.elements.listUrl.value = "https://brooklinebooksmith.com/list/new-yorker-best-books-2025";
-        form.elements.listName.value = "The New Yorker Best Books of 2025";
+        form.elements.listUrl.value = `https://brooklinebooksmith.com/list/new-yorker-best-books-${data.year}`;
+        form.elements.listName.value = `The New Yorker Best Books of ${data.year}`;
         form.elements.listText.value = "Northlight — Mira Dane — Literary Fiction\nSalt Atlas by Priya Narang (Essays & Culture)\nLanterns in Winter — Owen Mercer — Historical Fiction";
       }
       currentDraft = buildImportDraft(new FormData(form));
@@ -1592,8 +1666,16 @@
     return "All Books";
   }
 
-  function getAwardRecognition(appearances) {
-    const awardEntries = appearances.filter((appearance) => appearance.list.kind === "Award" || appearance.list.kind === "Longlist");
+  function getAwardRecognition(item) {
+    const directAwards = derived.awardsByBook.get(item.book.id) || [];
+    if (directAwards.length) {
+      return {
+        total: directAwards.length,
+        shortLabel: `On ${directAwards.length} award ${directAwards.length === 1 ? "list" : "lists"}`
+      };
+    }
+
+    const awardEntries = item.appearances.filter((appearance) => appearance.list.kind === "Award" || appearance.list.kind === "Longlist");
     if (!awardEntries.length) {
       return null;
     }
@@ -1718,10 +1800,10 @@
   }
 
   function renderRankingRow(item) {
-    const awardNote = getAwardRecognition(item.appearances);
+    const awardNote = getAwardRecognition(item);
 
     return `
-      <li class="ranking-row is-clickable" data-href="book.html?slug=${item.book.slug}" tabindex="0">
+      <li class="ranking-row is-clickable" data-href="${buildBookHref(item.book.slug)}" tabindex="0">
         <div class="ranking-index">#${item.rank}</div>
         ${renderCover(item.book, "cover-sm")}
         <div class="ranking-main">
@@ -1748,7 +1830,7 @@
     const subtitle = `${item.listCount} lists · #${item.rank} aggregate`;
 
     return `
-      <article class="mini-book-row is-clickable" data-href="book.html?slug=${item.book.slug}" tabindex="0">
+      <article class="mini-book-row is-clickable" data-href="${buildBookHref(item.book.slug)}" tabindex="0">
         <span class="mini-rank">${index}</span>
         ${renderCover(item.book, "cover-xs")}
         <div class="mini-book-copy">
@@ -1762,7 +1844,7 @@
 
   function renderPopularListRow(item, compact) {
     return `
-      <article class="list-row is-clickable ${compact ? "list-row--compact" : ""}" data-href="list.html?id=${item.list.id}" tabindex="0">
+      <article class="list-row is-clickable ${compact ? "list-row--compact" : ""}" data-href="${buildListHref(item.list.id)}" tabindex="0">
         <div class="list-row-main">
           <p class="eyebrow">${item.source.name}</p>
           <h3 class="item-title">${item.list.title}</h3>
@@ -1780,7 +1862,7 @@
     const externalUrl = item.list.url && item.list.url !== "#" ? item.list.url : "";
 
     return `
-      <article class="latest-list-card is-clickable" data-href="list.html?id=${item.list.id}" tabindex="0">
+      <article class="latest-list-card is-clickable" data-href="${buildListHref(item.list.id)}" tabindex="0">
         <div class="latest-list-card-head">
           <strong class="latest-list-source">${item.source.name}</strong>
           ${externalUrl ? `<a class="text-link latest-list-link" href="${escapeHtml(externalUrl)}" target="_blank" rel="noreferrer">Source link</a>` : ""}
@@ -1817,7 +1899,7 @@
 
     return tabs
       .map((tab) => {
-        const href = `lists.html?sort=${encodeURIComponent(tab.key)}`;
+        const href = buildPageHref("lists.html", { sort: tab.key });
         return `<a class="chip ${sortKey === tab.key ? "is-active" : ""}" href="${href}">${tab.label}</a>`;
       })
       .join("");
@@ -1831,7 +1913,7 @@
 
     return tabs
       .map((tab) => {
-        const href = `awards.html?sort=${encodeURIComponent(tab.key)}`;
+        const href = buildPageHref("awards.html", { sort: tab.key });
         return `<a class="chip ${sortKey === tab.key ? "is-active" : ""}" href="${href}">${tab.label}</a>`;
       })
       .join("");
@@ -1839,13 +1921,29 @@
 
   function renderAppearanceCard(appearance) {
     return `
-      <article class="appearance-card is-clickable" data-href="list.html?id=${appearance.list.id}" tabindex="0">
+      <article class="appearance-card is-clickable" data-href="${buildListHref(appearance.list.id)}" tabindex="0">
         <div class="appearance-head">
           <span class="eyebrow">${appearance.source.name}</span>
           <span class="status-chip">${appearance.label || "Listed"}</span>
         </div>
         <h3 class="item-title">${appearance.list.title}</h3>
         <p class="meta-line">${appearance.list.kind} · ${appearance.list.scope} · ${formatMonth(appearance.list.updatedAt)}</p>
+      </article>
+    `;
+  }
+
+  function renderAwardCard(recognition) {
+    const href = recognition.award.url && recognition.award.url !== "#" ? recognition.award.url : buildPageHref("awards.html");
+    const detail = [recognition.award.category, recognition.award.year].filter(Boolean).join(" · ");
+
+    return `
+      <article class="appearance-card is-clickable" data-href="${href}" tabindex="0">
+        <div class="appearance-head">
+          <span class="eyebrow">${recognition.source?.name || "Award"}</span>
+          <span class="status-chip">${escapeHtml(recognition.recognition)}</span>
+        </div>
+        <h3 class="item-title">${recognition.award.name}</h3>
+        <p class="meta-line">${detail || "Award recognition"}</p>
       </article>
     `;
   }
@@ -1859,7 +1957,7 @@
 
     return tabs
       .map((tab) => {
-        const href = `list.html?id=${encodeURIComponent(listId)}&sort=${encodeURIComponent(tab.key)}`;
+        const href = buildListHref(listId, { sort: tab.key });
         return `<a class="chip ${sortKey === tab.key ? "is-active" : ""}" href="${href}">${tab.label}</a>`;
       })
       .join("");
@@ -1868,7 +1966,7 @@
   function renderListEntry(entry, index) {
     const ranking = derived.bookRanksById[entry.book.id];
     return `
-      <article class="list-entry is-clickable" data-href="book.html?slug=${entry.book.slug}" tabindex="0">
+      <article class="list-entry is-clickable" data-href="${buildBookHref(entry.book.slug)}" tabindex="0">
         <div class="list-entry-order">${entry.position || index}</div>
         ${renderCover(entry.book, "cover-sm")}
         <div class="list-entry-main">
@@ -1911,7 +2009,7 @@
           type: "Book",
           title: book.title,
           subtitle: `by ${book.author}`,
-          href: `book.html?slug=${book.slug}`,
+          href: buildBookHref(book.slug),
           detail: `#${ranking.rank} aggregate · ${ranking.listCount} list appearances`
         });
       }
@@ -1925,7 +2023,7 @@
           type: "List",
           title: list.title,
           subtitle: source.name,
-          href: `list.html?id=${list.id}`,
+          href: buildListHref(list.id),
           detail: `${list.kind} · ${list.scope} · ${formatNumber(list.followers)} followers`
         });
       }
@@ -1938,7 +2036,7 @@
           type: "Source",
           title: source.name,
           subtitle: source.type,
-          href: source.url || "lists.html",
+          href: source.url && source.url !== "#" ? source.url : buildPageHref("lists.html"),
           detail: source.note
         });
       }
@@ -1952,7 +2050,7 @@
           title: genre.name,
           subtitle: "Normalized taxonomy",
           href: buildGenresHref(genre.id),
-          detail: `${count} books in the 2025 set`
+          detail: `${count} books in the ${data.year} set`
         });
       }
     });
@@ -2059,7 +2157,8 @@
       sources: mergeRecords(seed.sources, store.sources),
       books: [...patchedSeedBooks, ...localBooks],
       lists: mergeRecords(seed.lists, store.lists),
-      entries: [...seed.entries, ...store.entries]
+      entries: [...seed.entries, ...store.entries],
+      awards: Array.isArray(seed.awards) ? seed.awards : []
     };
   }
 
@@ -2079,7 +2178,9 @@
       pages: book.pages ? Number(book.pages) : null,
       genres: Array.isArray(book.genres) ? book.genres.filter(Boolean) : [],
       cover,
-      coverImage: book.coverImage || ""
+      coverImage: book.coverImage || book.cover_image_url || "",
+      amazonReferralUrl: book.amazonReferralUrl || book.amazon_referral_url || "",
+      goodreadsUrl: book.goodreadsUrl || book.goodreads_url || ""
     };
   }
 
@@ -2236,25 +2337,105 @@
   }
 
   function buildBuyLink(book) {
+    if (book.amazonReferralUrl) {
+      return book.amazonReferralUrl;
+    }
     return `https://www.google.com/search?q=${encodeURIComponent(`buy ${book.title} ${book.author}`)}`;
   }
 
   function buildBooksHref(genre) {
-    const query = new URLSearchParams();
-    if (genre && genre !== "all") {
-      query.set("genre", genre);
-    }
-    const qs = query.toString();
-    return `books.html${qs ? `?${qs}` : ""}`;
+    return buildPageHref("books.html", {
+      genre: genre && genre !== "all" ? genre : null
+    });
   }
 
   function buildGenresHref(genre) {
-    const query = new URLSearchParams();
-    if (genre) {
-      query.set("genre", genre);
+    return buildPageHref("genres.html", {
+      genre: genre || null
+    });
+  }
+
+  function buildBookHref(slug) {
+    return buildPageHref("book.html", { slug });
+  }
+
+  function buildListHref(id, extraParams) {
+    return buildPageHref("list.html", { id, ...(extraParams || {}) });
+  }
+
+  function buildSearchHref(query) {
+    return buildPageHref("search.html", { q: query || null });
+  }
+
+  function renderYearPills(pagePath) {
+    const years = Array.isArray(data.availableYears) && data.availableYears.length ? data.availableYears : [data.year];
+    return years
+      .map((year) => {
+        const href = buildPageHref(pagePath, { year });
+        const className = year === data.year ? "pill is-active" : "pill";
+        return `<a class="${className}" href="${href}">${year}</a>`;
+      })
+      .join("");
+  }
+
+  function syncNavigationYear() {
+    const links = document.querySelectorAll(".site-header a[href]");
+    links.forEach((link) => {
+      const href = link.getAttribute("href");
+      if (!href || /^https?:/i.test(href) || href.startsWith("mailto:") || href.startsWith("tel:")) {
+        return;
+      }
+
+      link.setAttribute("href", buildPageHref(href));
+    });
+  }
+
+  function buildPageHref(path, overrides) {
+    const [pathname, hash = ""] = String(path || "").split("#");
+    const isInternalHtml = pathname === "" || pathname.endsWith(".html");
+    if (!isInternalHtml) {
+      return path;
     }
-    const qs = query.toString();
-    return `genres.html${qs ? `?${qs}` : ""}`;
+
+    const query = new URLSearchParams(params.toString());
+    const entries = Object.entries(overrides || {});
+    entries.forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") {
+        query.delete(key);
+      } else {
+        query.set(key, String(value));
+      }
+    });
+
+    if (!entries.some(([key]) => key === "year")) {
+      if (data.year) {
+        query.set("year", String(data.year));
+      } else {
+        query.delete("year");
+      }
+    }
+
+    const allowedParamsByPath = {
+      "index.html": new Set(["year", "genre"]),
+      "books.html": new Set(["year", "genre"]),
+      "genres.html": new Set(["year", "genre"]),
+      "lists.html": new Set(["year", "sort"]),
+      "awards.html": new Set(["year", "sort"]),
+      "list.html": new Set(["year", "id", "sort"]),
+      "book.html": new Set(["year", "slug"]),
+      "search.html": new Set(["year", "q"]),
+      "admin.html": new Set(["year", "mode"])
+    };
+
+    const allowedParams = allowedParamsByPath[pathname] || new Set(["year"]);
+    Array.from(query.keys()).forEach((key) => {
+      if (!allowedParams.has(key)) {
+        query.delete(key);
+      }
+    });
+
+    const queryString = query.toString();
+    return `${pathname}${queryString ? `?${queryString}` : ""}${hash ? `#${hash}` : ""}`;
   }
 
   function getHost(url) {

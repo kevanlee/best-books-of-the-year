@@ -1365,3 +1365,292 @@ body[data-page="home"] .genre-card.is-active {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+
+.admin-tablist,
+.stage-strip,
+.admin-import-summary,
+.admin-book-tags {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.admin-books-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.admin-book-browser,
+.admin-book-editor,
+.admin-import-shell {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.admin-book-browser--wide {
+  width: 100%;
+}
+
+.admin-filter-grid,
+.admin-book-form,
+.admin-book-form-main,
+.admin-book-form-side,
+.admin-import-sections,
+.admin-import-row-fields,
+.admin-import-row-side,
+.admin-validation-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.admin-filter-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-book-list,
+.readonly-list,
+.admin-import-table {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-book-table-shell {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+}
+
+.admin-book-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.admin-book-table th,
+.admin-book-table td {
+  padding: 0.8rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-book-table th {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(16, 20, 45, 0.03);
+}
+
+.admin-book-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-book-table-row {
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.admin-book-table-row:hover,
+.admin-book-table-row.is-active {
+  background: var(--warm-shade);
+}
+
+.admin-book-table-row strong {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+.admin-book-table-cover .cover {
+  min-width: 52px;
+}
+
+.admin-book-table-action,
+.admin-book-table-action-col {
+  width: 86px;
+  text-align: right;
+}
+
+.admin-book-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+  text-align: left;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.admin-book-row:hover,
+.admin-book-row.is-active {
+  border-color: var(--line-strong);
+  background: var(--warm-shade);
+  transform: translateY(-1px);
+}
+
+.admin-book-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.admin-book-copy strong {
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+.admin-book-form-layout,
+.admin-import-row-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.admin-book-editor-modal {
+  width: min(1120px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  position: relative;
+}
+
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(16, 20, 45, 0.36);
+  backdrop-filter: blur(8px);
+}
+
+.admin-cover-preview {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.readonly-item {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
+}
+
+.checkbox-grid--compact {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.checkbox-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+}
+
+.checkbox-pill--inline {
+  width: fit-content;
+}
+
+.checkbox-pill input {
+  margin: 0;
+}
+
+.admin-message {
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+}
+
+.admin-message p {
+  margin: 0;
+}
+
+.admin-message--success {
+  background: rgba(213, 240, 223, 0.85);
+  border-color: rgba(36, 99, 63, 0.22);
+}
+
+.admin-message--error {
+  background: rgba(248, 220, 220, 0.92);
+  border-color: rgba(146, 41, 41, 0.26);
+}
+
+.stage-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0.28rem 0.72rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  text-transform: capitalize;
+}
+
+.stage-chip.is-active {
+  background: rgba(16, 20, 45, 0.07);
+  border-color: rgba(16, 20, 45, 0.24);
+  color: var(--text);
+}
+
+.admin-import-row {
+  gap: var(--space-4);
+}
+
+.admin-import-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.admin-import-row-head strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 1rem;
+}
+
+.admin-validation-list {
+  margin-top: 0.9rem;
+}
+
+@media (max-width: 1080px) {
+  .admin-books-layout,
+  .admin-book-form-layout,
+  .admin-import-row-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-book-editor-modal {
+    width: min(100vw - 1rem, 1120px);
+    max-height: calc(100vh - 1rem);
+  }
+}
+
+@media (max-width: 820px) {
+  .admin-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
