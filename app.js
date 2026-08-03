@@ -27,8 +27,7 @@
   }
 
   const initialDataResult = await loadInitialData(fallbackSeedData);
-  const adminStore = loadAdminStore();
-  const data = buildMergedData(initialDataResult.data, adminStore);
+  const data = initialDataResult.data;
 
   window.BOOKLIST_RUNTIME = {
     dataSource: initialDataResult.source,
