@@ -9,23 +9,6 @@
     return;
   }
 
-  if (page === "admin" && window.BOOKLIST_ADMIN_APP && typeof window.BOOKLIST_ADMIN_APP.init === "function") {
-    window.BOOKLIST_RUNTIME = {
-      dataSource: window.supabaseClient ? "supabase" : "local",
-      fallbackReason: window.supabaseClient ? "configured" : "missing-config",
-      year: Number(params.get("year")) || null
-    };
-    document.body.dataset.dataSource = window.supabaseClient ? "supabase" : "local";
-
-    bindInteractiveCards();
-    bindHeaderScrollState();
-    await window.BOOKLIST_ADMIN_APP.init({
-      root,
-      searchParams: params
-    });
-    return;
-  }
-
   const initialDataResult = await loadInitialData(fallbackSeedData);
   const data = initialDataResult.data;
 
