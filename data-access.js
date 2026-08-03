@@ -3,7 +3,7 @@
     spreadsheetId: "1L_KTNG2FuY4kphCUgb3nt7MwmoSQtzWMVnlbGGOfuIY",
     booksGid: "2039015008",
     activeYear: 2025,
-    cacheKey: "books-of-the-year-sheets-v1",
+    cacheKey: "books-of-the-year-sheets-v2",
     cacheTtlMs: 15 * 60 * 1000,
     requestTimeoutMs: 15000
   };
