@@ -211,7 +211,7 @@
             countsTowardScore: true,
             year,
             followers: 0,
-            updatedAt: value(row, "last-modified") || `${year}-01-01`,
+            updatedAt: normalizeSheetDate(value(row, "last-modified"), year),
             url: "#",
             description: "Editorial best-of list from the Books of the Year spreadsheet."
           });
@@ -381,6 +381,22 @@
   function palette(seed) {
     const hue = Array.from(String(seed || "book")).reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360;
     return { a: `hsl(${hue} 45% 42%)`, b: `hsl(${(hue + 36) % 360} 40% 24%)` };
+  }
+
+  function normalizeSheetDate(input, fallbackYear) {
+    const value = String(input || "").trim();
+    if (!value) return `${fallbackYear}-01-01`;
+
+    const googleDate = value.match(/^Date\((\d{4}),(\d{1,2}),(\d{1,2})/);
+    if (googleDate) {
+      const year = googleDate[1];
+      const month = String(Number(googleDate[2]) + 1).padStart(2, "0");
+      const day = String(Number(googleDate[3])).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? `${fallbackYear}-01-01` : parsed.toISOString().slice(0, 10);
   }
 
   function unique(values) {
