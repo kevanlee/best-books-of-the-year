@@ -3,19 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Admin | Books of the Year</title>
-    <meta name="description" content="Admin tools for editing books and staging list imports." />
+    <title>Content management | Books of the Year</title>
+    <meta name="description" content="Books of the Year content is managed in Google Sheets." />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body data-page="admin">
+  <body>
     <div class="page-shell">
       <header class="site-header">
         <div class="topbar">
           <a class="brand" href="index.html">
             <img class="brand-mark" src="img/book-logo.png" alt="Booklist logo" />
-            <span class="brand-copy">
-              <span class="brand-name">Books of the Year</span>
-            </span>
+            <span class="brand-copy"><span class="brand-name">Books of the Year</span></span>
           </a>
           <nav class="site-nav" aria-label="Primary">
             <a href="index.html#best-of">Best Of</a>
@@ -24,29 +22,18 @@
             <a href="lists.html">Lists</a>
             <a href="awards.html">Awards</a>
           </nav>
-          <div class="utility-nav">
-            <a href="search.html">Search</a>
-            <a href="admin.html" aria-current="page">Admin</a>
-          </div>
+          <div class="utility-nav"><a href="search.html">Search</a></div>
         </div>
       </header>
       <main id="page-root">
-        <section class="loading-shell" aria-live="polite">
-          <p class="eyebrow">Loading</p>
-          <h1 class="loading-title">Opening admin tools…</h1>
-          <p class="loading-copy">Setting up book editing, staged imports, and Supabase review tools.</p>
+        <section class="loading-shell">
+          <p class="eyebrow">Content management</p>
+          <h1 class="loading-title">Book data is managed in Google Sheets.</h1>
+          <p class="loading-copy">The former database editor has been retired. Authorized editors can update books, lists, covers, links, and awards in the project spreadsheet.</p>
+          <p><a class="button" href="https://docs.google.com/spreadsheets/d/1L_KTNG2FuY4kphCUgb3nt7MwmoSQtzWMVnlbGGOfuIY/edit?gid=2039015008#gid=2039015008">Open the editorial spreadsheet</a></p>
         </section>
       </main>
-      <footer class="site-footer">
-        <p>Admin remains intentionally lightweight: single-user, local-first, and easy to iterate.</p>
-      </footer>
+      <footer class="site-footer"><p>Books of the Year is an editorial index of notable books and lists.</p></footer>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js"></script>
-    <script src="app-data.js"></script>
-    <script src="supabase-client.js"></script>
-    <script src="data-access.js"></script>
-    <script src="admin.js"></script>
-    <script src="app.js"></script>
   </body>
-  </html>
+</html>
