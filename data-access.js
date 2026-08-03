@@ -1,426 +1,431 @@
 (function () {
-  const DATA_SOURCE_LOCAL = "local";
-  const DATA_SOURCE_SUPABASE = "supabase";
-
-  window.BOOKLIST_DATA_ACCESS = {
-    loadAppData
+  const CONFIG = {
+    spreadsheetId: "1L_KTNG2FuY4kphCUgb3nt7MwmoSQtzWMVnlbGGOfuIY",
+    booksGid: "2039015008",
+    activeYear: 2025,
+    cacheKey: "books-of-the-year-sheets-v1",
+    cacheTtlMs: 15 * 60 * 1000,
+    requestTimeoutMs: 15000
   };
 
-  async function loadAppData(options) {
-    const seedData = normalizeSeedData(options.seedData || window.BOOKLIST_DATA || {});
-    const client = window.supabaseClient && typeof window.supabaseClient.from === "function"
-      ? window.supabaseClient
-      : null;
+  const GENRES = [
+    ["fiction", "Fiction"],
+    ["literary-fiction", "Literary Fiction"],
+    ["historical-fiction", "Historical Fiction"],
+    ["mystery-thriller", "Mystery & Thriller"],
+    ["science-fantasy", "Sci-Fi & Fantasy"],
+    ["memoir", "Memoir"],
+    ["history-biography", "History & Biography"],
+    ["nonfiction", "Nonfiction"],
+    ["essays-culture", "Essays & Culture"],
+    ["other", "Other"]
+  ];
 
-    if (!client) {
-      return {
-        data: seedData,
-        source: DATA_SOURCE_LOCAL,
-        reason: "missing-config"
-      };
+  window.BOOKLIST_DATA_ACCESS = { loadAppData };
+
+  async function loadAppData(options) {
+    const requestedYear = Number(options && options.requestedYear);
+    const cached = readCache();
+
+    if (cached && Date.now() - cached.fetchedAt < CONFIG.cacheTtlMs) {
+      return result(cached.data, "cache", "fresh-cache", cached.fetchedAt, cached.warnings || []);
     }
 
     try {
-      const availableYears = await fetchAvailableYears(client, seedData);
-      const requestedYear = Number(options.requestedYear);
-      const activeYear = pickActiveYear(requestedYear, availableYears, seedData.year);
-      const supabaseData = await fetchYearDataset(client, activeYear, seedData);
-
-      return {
-        data: {
-          ...supabaseData,
-          availableYears
-        },
-        source: DATA_SOURCE_SUPABASE,
-        reason: "configured"
-      };
+      const table = await loadGoogleTable(CONFIG.booksGid);
+      const normalized = normalizeTable(table, requestedYear || CONFIG.activeYear);
+      const fetchedAt = Date.now();
+      writeCache({ data: normalized.data, warnings: normalized.warnings, fetchedAt });
+      return result(normalized.data, "google-sheets", "live", fetchedAt, normalized.warnings);
     } catch (error) {
-      console.warn("Falling back to local book data because Supabase could not be loaded.", error);
-      return {
-        data: seedData,
-        source: DATA_SOURCE_LOCAL,
-        reason: "query-error",
-        error
-      };
+      console.error("Google Sheets book data could not be loaded.", error);
+
+      if (cached && cached.data) {
+        return result(cached.data, "cache", "stale-cache", cached.fetchedAt, [
+          ...(cached.warnings || []),
+          "The live spreadsheet could not be reached. Showing saved data."
+        ], error);
+      }
+
+      const empty = emptyData(requestedYear || CONFIG.activeYear);
+      return result(empty, "error", "load-error", null, [
+        "The spreadsheet could not be loaded and no saved copy is available."
+      ], error);
     }
   }
 
-  function normalizeSeedData(seedData) {
-    const year = Number(seedData.year) || new Date().getFullYear();
-    return {
-      ...seedData,
-      year,
-      taxonomy: Array.isArray(seedData.taxonomy) ? seedData.taxonomy : [],
-      sources: Array.isArray(seedData.sources) ? seedData.sources : [],
-      books: Array.isArray(seedData.books) ? seedData.books : [],
-      lists: Array.isArray(seedData.lists) ? seedData.lists : [],
-      entries: Array.isArray(seedData.entries) ? seedData.entries : [],
-      awards: Array.isArray(seedData.awards) ? seedData.awards : [],
-      reviews: Array.isArray(seedData.reviews) ? seedData.reviews : [],
-      importPresets: Array.isArray(seedData.importPresets) ? seedData.importPresets : [],
-      availableYears: Array.isArray(seedData.availableYears) && seedData.availableYears.length
-        ? seedData.availableYears
-        : [year, year - 1, year - 2]
+  function result(data, source, reason, fetchedAt, warnings, error) {
+    window.BOOKLIST_RUNTIME_DETAILS = {
+      dataSource: source,
+      reason,
+      fetchedAt: fetchedAt ? new Date(fetchedAt).toISOString() : null,
+      activeYear: data.year,
+      bookCount: data.books.length,
+      listCount: data.lists.length,
+      warningCount: warnings.length,
+      warnings: warnings.slice(),
+      error: error ? String(error.message || error) : null
     };
+
+    warnings.forEach((warning) => console.warn(`[Books data] ${warning}`));
+
+    return { data, source, reason, error: error || null };
   }
 
-  async function selectRows(client, table, options) {
-    let query = client.from(table).select(options.select || "*");
+  function loadGoogleTable(gid) {
+    return new Promise((resolve, reject) => {
+      const callbackName = `booklistSheetCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const script = document.createElement("script");
+      const timeout = window.setTimeout(() => finish(new Error("The spreadsheet request timed out.")), CONFIG.requestTimeoutMs);
+      let settled = false;
 
-    (options.filters || []).forEach((filter) => {
-      if (!filter || !filter.column || !filter.operator) {
-        return;
+      function cleanup() {
+        window.clearTimeout(timeout);
+        delete window[callbackName];
+        script.remove();
       }
 
-      if (filter.operator === "in") {
-        const values = Array.isArray(filter.value) ? filter.value.filter(Boolean) : [];
-        if (!values.length) {
+      function finish(error, table) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        error ? reject(error) : resolve(table);
+      }
+
+      window[callbackName] = (response) => {
+        if (!response || response.status === "error" || !response.table) {
+          const message = response && response.errors && response.errors[0]
+            ? response.errors[0].detailed_message || response.errors[0].message
+            : "Google Sheets returned an invalid response.";
+          finish(new Error(message));
           return;
         }
-        query = query.in(filter.column, values);
-        return;
-      }
-
-      if (filter.value === undefined || filter.value === null || filter.value === "") {
-        return;
-      }
-
-      if (filter.operator === "eq") {
-        query = query.eq(filter.column, filter.value);
-      }
-    });
-
-    if (options.order && options.order.column) {
-      query = query.order(options.order.column, { ascending: Boolean(options.order.ascending) });
-    }
-
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      throw new Error(`Supabase query failed for ${table}: ${error.message}`);
-    }
-
-    return data || [];
-  }
-
-  async function fetchAvailableYears(client, seedData) {
-    const rows = await selectRows(client, "lists", {
-      select: "list_year",
-      order: { column: "list_year", ascending: false },
-      limit: 500
-    });
-
-    const years = Array.from(
-      new Set(
-        rows
-          .map((row) => Number(row.list_year))
-          .filter(Boolean)
-      )
-    );
-
-    return years.length ? years : seedData.availableYears;
-  }
-
-  function pickActiveYear(requestedYear, availableYears, fallbackYear) {
-    if (requestedYear && availableYears.includes(requestedYear)) {
-      return requestedYear;
-    }
-
-    return availableYears[0] || fallbackYear;
-  }
-
-  async function fetchYearDataset(client, year, seedData) {
-    // Home, Books, Genres, and Search all depend on the same year-scoped aggregate:
-    // lists -> book_list_appearances -> books, plus book_genres -> genres and sources for labels/context.
-    const [genres, lists, awards] = await Promise.all([
-      fetchGenres(client),
-      fetchListsForYear(client, year),
-      fetchAwardsForYear(client, year)
-    ]);
-
-    const [appearances, bookAwards] = await Promise.all([
-      fetchAppearancesForLists(client, lists.map((list) => list.id)),
-      fetchBookAwardsForAwards(client, awards.map((award) => award.id))
-    ]);
-
-    const sourceIds = uniqueValues(
-      lists.map((list) => list.source_id).concat(awards.map((award) => award.source_id)).filter(Boolean)
-    );
-    const bookIds = uniqueValues(
-      appearances.map((appearance) => appearance.book_id).concat(bookAwards.map((award) => award.book_id)).filter(Boolean)
-    );
-
-    const [sources, books, bookGenres] = await Promise.all([
-      fetchSourcesByIds(client, sourceIds),
-      fetchBooksByIds(client, bookIds),
-      fetchBookGenresForBooks(client, bookIds)
-    ]);
-
-    // Book detail pages also hydrate book_awards -> awards so the existing recognition section can show database-backed awards.
-    // List and Awards pages reuse the same lists/sources/appearances dataset, with award-related lists filtered in the UI layer.
-    return mapSupabaseDataToAppShape({
-      year,
-      seedData,
-      genres,
-      sources,
-      books,
-      lists,
-      appearances,
-      awards,
-      bookAwards,
-      bookGenres
-    });
-  }
-
-  function uniqueValues(values) {
-    return Array.from(new Set((values || []).filter(Boolean)));
-  }
-
-  async function fetchGenres(client) {
-    return selectRows(client, "genres", {
-      select: "id,slug,name,display_order",
-      order: { column: "display_order", ascending: true },
-      limit: 500
-    });
-  }
-
-  async function fetchSourcesByIds(client, sourceIds) {
-    if (!sourceIds.length) {
-      return [];
-    }
-
-    return selectRows(client, "sources", {
-      select: "id,slug,name,source_type,homepage_url,notes",
-      filters: [{ column: "id", operator: "in", value: sourceIds }],
-      limit: 500
-    });
-  }
-
-  async function fetchListsForYear(client, year) {
-    return selectRows(client, "lists", {
-      select: "id,source_id,award_id,slug,title,list_kind,scope,ranked,counts_toward_score,list_year,follower_count,source_updated_at,url,description",
-      filters: [{ column: "list_year", operator: "eq", value: year }],
-      order: { column: "source_updated_at", ascending: false },
-      limit: 1000
-    });
-  }
-
-  async function fetchAppearancesForLists(client, listIds) {
-    if (!listIds.length) {
-      return [];
-    }
-
-    return selectRows(client, "book_list_appearances", {
-      select: "id,list_id,book_id,position,appearance_label",
-      filters: [{ column: "list_id", operator: "in", value: listIds }],
-      limit: 5000
-    });
-  }
-
-  async function fetchAwardsForYear(client, year) {
-    return selectRows(client, "awards", {
-      select: "id,source_id,slug,name,category,award_year,description,url",
-      filters: [{ column: "award_year", operator: "eq", value: year }],
-      limit: 1000
-    });
-  }
-
-  async function fetchBookAwardsForAwards(client, awardIds) {
-    if (!awardIds.length) {
-      return [];
-    }
-
-    return selectRows(client, "book_awards", {
-      select: "id,book_id,award_id,recognition,recognition_position,citation",
-      filters: [{ column: "award_id", operator: "in", value: awardIds }],
-      limit: 5000
-    });
-  }
-
-  async function fetchBooksByIds(client, bookIds) {
-    if (!bookIds.length) {
-      return [];
-    }
-
-    return selectRows(client, "books", {
-      select: "id,slug,title,author_name,publication_year,publication_date,publisher,book_genre,page_count,critic_score,user_score,critic_count,review_count,trend_score,blurb,cover_image_url,amazon_referral_url,goodreads_url,cover_color_start,cover_color_end",
-      filters: [{ column: "id", operator: "in", value: bookIds }],
-      limit: 5000
-    });
-  }
-
-  async function fetchBookGenresForBooks(client, bookIds) {
-    if (!bookIds.length) {
-      return [];
-    }
-
-    return selectRows(client, "book_genres", {
-      select: "book_id,genre:genres(id,slug,name,display_order)",
-      filters: [{ column: "book_id", operator: "in", value: bookIds }],
-      limit: 5000
-    });
-  }
-
-  function mapSupabaseDataToAppShape(payload) {
-    const taxonomy = payload.genres.map((genre) => ({
-      id: genre.slug,
-      dbId: genre.id,
-      name: genre.name,
-      displayOrder: Number(genre.display_order) || 0
-    }));
-
-    const taxonomyByDbId = new Map(payload.genres.map((genre) => [genre.id, genre.slug]));
-
-    const sources = payload.sources.map((source) => ({
-      id: source.slug,
-      dbId: source.id,
-      name: source.name,
-      type: source.source_type,
-      url: source.homepage_url || "#",
-      note: source.notes || ""
-    }));
-
-    const sourcesByDbId = new Map(sources.map((source) => [source.dbId, source]));
-
-    const lists = payload.lists.map((list) => ({
-      id: list.slug,
-      dbId: list.id,
-      sourceId: sourcesByDbId.get(list.source_id)?.id || list.source_id,
-      title: list.title,
-      kind: list.list_kind,
-      scope: list.scope || "All Books",
-      ranked: Boolean(list.ranked),
-      countsTowardScore: Boolean(list.counts_toward_score),
-      year: Number(list.list_year) || payload.year,
-      followers: Number(list.follower_count) || 0,
-      updatedAt: list.source_updated_at || `${payload.year}-01-01`,
-      url: list.url || "#",
-      description: list.description || ""
-    }));
-
-    const listIdByDbId = new Map(lists.map((list) => [list.dbId, list.id]));
-
-    const bookGenresByBookId = new Map();
-    payload.bookGenres.forEach((row) => {
-      const mappedGenreId = row.genre && taxonomyByDbId.get(row.genre.id);
-      if (!mappedGenreId) {
-        return;
-      }
-
-      if (!bookGenresByBookId.has(row.book_id)) {
-        bookGenresByBookId.set(row.book_id, []);
-      }
-
-      bookGenresByBookId.get(row.book_id).push({
-        id: mappedGenreId,
-        displayOrder: Number(row.genre.display_order) || 0
-      });
-    });
-
-    const books = payload.books.map((book) => {
-      const genres = (bookGenresByBookId.get(book.id) || [])
-        .slice()
-        .sort((left, right) => left.displayOrder - right.displayOrder)
-        .map((genre) => genre.id);
-
-      return {
-        id: book.slug,
-        dbId: book.id,
-        slug: book.slug,
-        title: book.title,
-        author: book.author_name,
-        year: Number(book.publication_year) || payload.year,
-        published: book.publication_date || `${payload.year}-01-01`,
-        publisher: book.publisher || "Publisher TBD",
-        format: book.book_genre || "Book",
-        pages: book.page_count ? Number(book.page_count) : null,
-        genres,
-        criticScore: book.critic_score === null ? null : Number(book.critic_score),
-        userScore: book.user_score === null ? null : Number(book.user_score),
-        criticCount: book.critic_count === null ? null : Number(book.critic_count),
-        reviewCount: book.review_count === null ? null : Number(book.review_count),
-        trendScore: book.trend_score === null ? null : Number(book.trend_score),
-        blurb: book.blurb || "",
-        coverImage: book.cover_image_url || "",
-        amazonReferralUrl: book.amazon_referral_url || "",
-        goodreadsUrl: book.goodreads_url || "",
-        cover: {
-          a: book.cover_color_start || "",
-          b: book.cover_color_end || ""
-        }
+        finish(null, response.table);
       };
+
+      const params = new URLSearchParams({
+        gid: String(gid),
+        tqx: `responseHandler:${callbackName}`,
+        headers: "1"
+      });
+      script.src = `https://docs.google.com/spreadsheets/d/${CONFIG.spreadsheetId}/gviz/tq?${params}`;
+      script.async = true;
+      script.onerror = () => finish(new Error("The spreadsheet request was blocked or unavailable."));
+      document.head.appendChild(script);
+    });
+  }
+
+  function normalizeTable(table, activeYear) {
+    const warnings = [];
+    const headers = (table.cols || []).map((column, index) => normalizeHeader(column.label || column.id || `column-${index + 1}`));
+    const rows = (table.rows || []).map((row, rowIndex) => {
+      const record = { __rowNumber: rowIndex + 2 };
+      headers.forEach((header, columnIndex) => {
+        const cell = row.c && row.c[columnIndex];
+        record[header] = cell && cell.v !== null && cell.v !== undefined ? String(cell.v).trim() : "";
+      });
+      return record;
     });
 
-    const booksByDbId = new Map(books.map((book) => [book.dbId, book]));
+    assertColumns(headers, ["title", "author"]);
 
-    const entries = payload.appearances
-      .map((appearance) => {
-        const book = booksByDbId.get(appearance.book_id);
-        const listId = listIdByDbId.get(appearance.list_id);
-        if (!book || !listId) {
-          return null;
+    const taxonomy = GENRES.map(([id, name], index) => ({ id, name, displayOrder: index + 1 }));
+    const sourcesMap = new Map();
+    const listsMap = new Map();
+    const books = [];
+    const entries = [];
+    const awards = [];
+    const usedSlugs = new Map();
+
+    rows.forEach((row) => {
+      const publishedValue = value(row, "published");
+      if (publishedValue && !isTruthy(publishedValue)) return;
+
+      const title = value(row, "title");
+      const author = value(row, "author");
+      if (!title) {
+        if (Object.values(row).some(Boolean)) warnings.push(`Row ${row.__rowNumber} was skipped because it has no title.`);
+        return;
+      }
+      if (!author) warnings.push(`Row ${row.__rowNumber} (${title}) has no author.`);
+
+      const baseSlug = slugify(value(row, "slug") || title);
+      let slug = baseSlug || `book-${row.__rowNumber}`;
+      if (usedSlugs.has(slug)) {
+        const authorSuffix = slugify(author).split("-").slice(0, 2).join("-");
+        slug = `${slug}-${authorSuffix || row.__rowNumber}`;
+        warnings.push(`Row ${row.__rowNumber} needed a unique generated slug: ${slug}.`);
+      }
+      usedSlugs.set(slug, true);
+
+      const bookId = value(row, "id") || slug;
+      const year = toInteger(value(row, "publication-year", "publication-year-1", "publication_year")) || activeYear;
+      const genreName = value(row, "genre", "book-genre", "book_genre");
+      const genreId = normalizeGenre(genreName);
+      const listNames = unique(splitListCell(value(row, "lists")));
+      const coverImage = durableCover(row);
+
+      const book = {
+        id: bookId,
+        dbId: bookId,
+        slug,
+        title,
+        author,
+        year,
+        published: value(row, "publication-date", "publication_date") || `${year}-01-01`,
+        publisher: value(row, "publisher") || "",
+        format: genreName || "Book",
+        pages: toInteger(value(row, "page-count", "page_count")),
+        genres: [genreId],
+        criticScore: toNumber(value(row, "critic-score", "critic_score")),
+        userScore: toNumber(value(row, "user-score", "user_score")),
+        criticCount: toInteger(value(row, "critic-count", "critic_count")),
+        reviewCount: toInteger(value(row, "review-count", "review_count")),
+        trendScore: toNumber(value(row, "trend-score", "trend_score")),
+        blurb: value(row, "book-summary-ai", "book-summary", "blurb"),
+        coverImage,
+        amazonReferralUrl: validHttpUrl(value(row, "amazon-url", "amazon_referral_url")),
+        goodreadsUrl: validHttpUrl(value(row, "goodreads-url", "goodreads_url")),
+        isbn10: value(row, "isbn-10"),
+        isbn13: value(row, "isbn-13"),
+        cover: palette(title)
+      };
+      books.push(book);
+
+      listNames.forEach((listName) => {
+        const listId = slugify(listName);
+        if (!listId) return;
+        if (!listsMap.has(listId)) {
+          const sourceName = inferSourceName(listName);
+          const sourceId = slugify(sourceName);
+          if (!sourcesMap.has(sourceId)) {
+            sourcesMap.set(sourceId, { id: sourceId, name: sourceName, type: "Editorial List", url: "#", note: "From the Google Sheets editorial database" });
+          }
+          listsMap.set(listId, {
+            id: listId,
+            sourceId,
+            title: listName,
+            kind: "Best Of",
+            scope: "All Books",
+            ranked: false,
+            countsTowardScore: true,
+            year,
+            followers: 0,
+            updatedAt: value(row, "last-modified") || `${year}-01-01`,
+            url: "#",
+            description: "Editorial best-of list from the Books of the Year spreadsheet."
+          });
         }
+        entries.push({ id: `${listId}-${bookId}`, listId, bookId, position: null, label: "Listed" });
+      });
 
-        return {
-          id: appearance.id,
-          listId,
-          bookId: book.id,
-          position: appearance.position === null ? null : Number(appearance.position),
-          label: appearance.appearance_label || "Listed"
-        };
-      })
-      .filter(Boolean);
+      addAwards(awards, bookId, row, year, sourcesMap);
 
-    const awardsByDbId = new Map(
-      payload.awards.map((award) => [
-        award.id,
-        {
-          id: award.slug,
-          dbId: award.id,
-          sourceId: sourcesByDbId.get(award.source_id)?.id || award.source_id,
-          name: award.name,
-          category: award.category || "",
-          year: Number(award.award_year) || payload.year,
-          description: award.description || "",
-          url: award.url || "#"
-        }
-      ])
-    );
+      const statedCount = toInteger(value(row, "times-in-best-of-lists", "best-of-count"));
+      if (statedCount !== null && statedCount !== listNames.length) {
+        warnings.push(`Row ${row.__rowNumber} (${title}) says ${statedCount} list appearances; ${listNames.length} unique list names were parsed.`);
+      }
+    });
 
-    const awardRecognitions = payload.bookAwards
-      .map((bookAward) => {
-        const book = booksByDbId.get(bookAward.book_id);
-        const award = awardsByDbId.get(bookAward.award_id);
-        if (!book || !award) {
-          return null;
-        }
-
-        return {
-          id: bookAward.id,
-          bookId: book.id,
-          awardId: award.id,
-          recognition: bookAward.recognition,
-          position: bookAward.recognition_position === null ? null : Number(bookAward.recognition_position),
-          citation: bookAward.citation || "",
-          award
-        };
-      })
-      .filter(Boolean);
+    const availableYears = unique(books.map((book) => book.year)).sort((a, b) => b - a);
+    const year = availableYears.includes(activeYear) ? activeYear : (availableYears[0] || activeYear);
 
     return {
-      year: payload.year,
-      availableYears: payload.seedData.availableYears,
-      taxonomy,
-      sources,
-      books,
-      lists,
-      entries,
-      awards: awardRecognitions,
-      reviews: payload.seedData.reviews,
-      importPresets: payload.seedData.importPresets
+      data: {
+        year,
+        availableYears: availableYears.length ? availableYears : [year],
+        taxonomy,
+        sources: Array.from(sourcesMap.values()),
+        books,
+        lists: Array.from(listsMap.values()),
+        entries,
+        awards,
+        reviews: [],
+        importPresets: []
+      },
+      warnings
     };
+  }
+
+  function addAwards(target, bookId, row, year, sourcesMap) {
+    const fields = [
+      ["book-awards", "Winner"],
+      ["longlisted", "Longlist"],
+      ["awards", "Recognition"],
+      ["shortlisted", "Shortlist"]
+    ];
+
+    fields.forEach(([field, recognition]) => {
+      unique(splitListCell(value(row, field))).forEach((name) => {
+        const awardId = slugify(`${name}-${year}`);
+        const sourceId = slugify(name);
+        if (!sourcesMap.has(sourceId)) {
+          sourcesMap.set(sourceId, { id: sourceId, name, type: "Award", url: "#", note: "From the Google Sheets editorial database" });
+        }
+        target.push({
+          id: `${bookId}-${awardId}-${slugify(recognition)}`,
+          bookId,
+          awardId,
+          recognition,
+          position: null,
+          citation: "",
+          award: { id: awardId, sourceId, name, category: "", year, description: "", url: "#" }
+        });
+      });
+    });
+  }
+
+  function emptyData(year) {
+    return {
+      year,
+      availableYears: [year],
+      taxonomy: GENRES.map(([id, name], index) => ({ id, name, displayOrder: index + 1 })),
+      sources: [], books: [], lists: [], entries: [], awards: [], reviews: [], importPresets: []
+    };
+  }
+
+  function assertColumns(headers, required) {
+    const missing = required.filter((header) => !headers.includes(header));
+    if (missing.length) throw new Error(`The Books sheet is missing required columns: ${missing.join(", ")}.`);
+  }
+
+  function normalizeHeader(header) {
+    return String(header || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[()]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function value(row, ...names) {
+    for (const name of names) {
+      const normalized = normalizeHeader(name);
+      if (row[normalized] !== undefined && row[normalized] !== "") return row[normalized];
+    }
+    return "";
+  }
+
+  function splitListCell(input) {
+    const text = String(input || "").trim();
+    if (!text) return [];
+    if (text.includes("|")) return text.split("|").map(cleanListValue).filter(Boolean);
+
+    const values = [];
+    let current = "";
+    let quoted = false;
+    for (let index = 0; index < text.length; index += 1) {
+      const character = text[index];
+      if (character === '"') {
+        if (quoted && text[index + 1] === '"') {
+          current += '"';
+          index += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (character === "," && !quoted) {
+        values.push(cleanListValue(current));
+        current = "";
+      } else {
+        current += character;
+      }
+    }
+    values.push(cleanListValue(current));
+    return values.filter(Boolean);
+  }
+
+  function cleanListValue(input) {
+    return String(input || "").trim().replace(/^['"]+|['"]+$/g, "").trim();
+  }
+
+  function normalizeGenre(input) {
+    const value = String(input || "").toLowerCase();
+    if (!value) return "other";
+    if (value.includes("literary")) return "literary-fiction";
+    if (value.includes("historical fiction")) return "historical-fiction";
+    if (value.includes("mystery") || value.includes("thriller") || value.includes("crime")) return "mystery-thriller";
+    if (value.includes("sci-fi") || value.includes("science fiction") || value.includes("fantasy")) return "science-fantasy";
+    if (value.includes("memoir")) return "memoir";
+    if (value.includes("history") || value.includes("biography")) return "history-biography";
+    if (value.includes("essay") || value.includes("culture")) return "essays-culture";
+    if (value === "fiction") return "fiction";
+    if (value.includes("nonfiction") || value.includes("non-fiction")) return "nonfiction";
+    return "other";
+  }
+
+  function durableCover(row) {
+    const preferred = validHttpUrl(value(row, "book-cover-url", "cover-url", "cover_image_url"));
+    if (preferred) return preferred;
+    const attachment = value(row, "cover-image");
+    const match = attachment.match(/\((https?:\/\/[^)]+)\)/);
+    return match ? validHttpUrl(match[1]) : validHttpUrl(attachment);
+  }
+
+  function inferSourceName(listName) {
+    const name = String(listName || "").trim();
+    const colonIndex = name.indexOf(":");
+    if (colonIndex > 1 && colonIndex < 40) return name.slice(0, colonIndex).trim();
+    return name;
+  }
+
+  function slugify(input) {
+    return String(input || "")
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[’']/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function palette(seed) {
+    const hue = Array.from(String(seed || "book")).reduce((sum, character) => sum + character.charCodeAt(0), 0) % 360;
+    return { a: `hsl(${hue} 45% 42%)`, b: `hsl(${(hue + 36) % 360} 40% 24%)` };
+  }
+
+  function unique(values) {
+    return Array.from(new Set((values || []).filter((value) => value !== null && value !== undefined && value !== "")));
+  }
+
+  function toInteger(input) {
+    if (input === "" || input === null || input === undefined) return null;
+    const number = Number(input);
+    return Number.isFinite(number) ? Math.round(number) : null;
+  }
+
+  function toNumber(input) {
+    if (input === "" || input === null || input === undefined) return null;
+    const number = Number(input);
+    return Number.isFinite(number) ? number : null;
+  }
+
+  function isTruthy(input) {
+    return ["true", "yes", "1", "published", "y"].includes(String(input || "").trim().toLowerCase());
+  }
+
+  function validHttpUrl(input) {
+    try {
+      const url = new URL(String(input || "").trim());
+      return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function readCache() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(CONFIG.cacheKey) || "null");
+      return parsed && parsed.data && Number(parsed.fetchedAt) ? parsed : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeCache(payload) {
+    try {
+      window.localStorage.setItem(CONFIG.cacheKey, JSON.stringify(payload));
+    } catch (error) {
+      console.warn("The normalized spreadsheet data could not be cached.", error);
+    }
   }
 })();
