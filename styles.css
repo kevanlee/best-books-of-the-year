@@ -1496,6 +1496,67 @@ body[data-page="home"] .genre-card.is-active {
 .editorial-note { max-width: 38rem; margin-top: 2rem; padding-left: 2rem; border-left: 2px solid var(--text); }
 .editorial-note p:not(.eyebrow) { margin: 0 0 1rem; color: var(--text-soft); font-size: 0.88rem; line-height: 1.7; }
 
+.editor-note-section {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(0, 2fr);
+  gap: 4rem;
+  padding: 4rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.editor-note-heading .eyebrow {
+  margin: 0 0 1rem;
+}
+
+.editor-note-heading h2 {
+  margin: 0;
+  font-family: "Libre Baskerville", Georgia, serif;
+  font-size: clamp(1.55rem, 2.5vw, 2rem);
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.editor-note-body {
+  max-width: 46rem;
+  padding-left: 2rem;
+  border-left: 2px solid var(--text);
+}
+
+.editor-note-body p {
+  max-width: 42rem;
+  margin: 0 0 1.15rem;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  line-height: 1.75;
+}
+
+.editor-note-body .editor-note-lead {
+  color: var(--text);
+  font-family: "Libre Baskerville", Georgia, serif;
+  font-size: 0.95rem;
+}
+
+.editor-note-signature {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 2rem;
+}
+
+.editor-note-signature strong {
+  font-family: "Libre Baskerville", Georgia, serif;
+  font-size: 0.82rem;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.editor-note-signature span {
+  color: var(--text-faint);
+  font-family: "DM Mono", monospace;
+  font-size: 0.56rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
 .ranking-row,
 .mini-book-row,
 .appearance-card,
@@ -2548,6 +2609,25 @@ main {
 
   .editorial-book-rail {
     grid-auto-columns: 54vw;
+  }
+
+  .editor-note-section {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    padding: 3.5rem 0;
+    text-align: center;
+  }
+
+  .editor-note-body {
+    max-width: 34rem;
+    margin-inline: auto;
+    padding: 1.75rem 0 0;
+    border-top: 1px solid var(--text);
+    border-left: 0;
+  }
+
+  .editor-note-body p {
+    margin-inline: auto;
   }
 
   .section {
