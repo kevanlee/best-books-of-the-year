@@ -272,7 +272,7 @@
           <h2 class="eyebrow">Most-listed books of ${data.year}</h2>
           <a class="text-link" href="${buildBooksHref(activeGenre === "all" ? "" : activeGenre)}">View all →</a>
         </div>
-        <ol class="editorial-book-rail">${books.slice(0, 6).map((item) => renderRankingRow(item)).join("")}</ol>
+        <ol class="editorial-book-rail">${books.slice(0, 10).map((item) => renderRankingRow(item)).join("")}</ol>
       </section>
 
       <section class="editor-note-section" aria-labelledby="editor-note-title">
