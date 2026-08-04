@@ -290,13 +290,8 @@
               <h2 class="section-title">Browse by genre</h2>
             </div>
           </div>
-          <div class="filter-block">
+            <div class="filter-block">
               <div class="pill-row">${renderGenrePills(activeGenre)}</div>
-          </div>
-            <div class="editorial-note">
-              <p class="eyebrow">How the index works</p>
-              <p>We collect the lists, awards, and longlists that define each year in books. The aggregate view surfaces the titles that careful readers keep arriving at from different directions.</p>
-              <p>We weight nothing. We hide nothing. We count each qualifying appearance and let the overlap speak.</p>
             </div>
           </section>
         </div>
@@ -340,6 +335,22 @@
         </div>
         <div class="genre-grid">
           ${derived.genreStats.map((item) => renderGenreCard(item)).join("")}
+        </div>
+      </section>
+
+      <section class="editor-note-section" aria-labelledby="editor-note-title">
+        <div class="editor-note-heading">
+          <p class="eyebrow">A note from the editor</p>
+          <h2 id="editor-note-title">Why we read<br>the lists</h2>
+        </div>
+        <div class="editor-note-body">
+          <p class="editor-note-lead">Every December, the same thing happens. The Times publishes its ten best. NPR releases its hundred. The Guardian gathers its critics. Each list is a genuine act of discernment, and each one, taken alone, tells an incomplete story.</p>
+          <p>The aggregated view surfaces a different kind of signal: one that emerges from the overlap, the consensus, and the places where careful readers arrive at the same title from different directions.</p>
+          <p>We track ${data.lists.length} lists, award bodies, and literary sources. We weight nothing. We hide nothing. We simply count, and let the count speak.</p>
+          <div class="editor-note-signature">
+            <strong>Best Books of the Year</strong>
+            <span>Editorial team</span>
+          </div>
         </div>
       </section>
     `;
