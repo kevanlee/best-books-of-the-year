@@ -1454,14 +1454,19 @@ body[data-page="home"] .genre-card.is-active {
   min-width: 0;
   padding: 0;
   border: 0;
-  background: transparent;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 body[data-page="home"] .editorial-book-rail .ranking-row.is-clickable:hover,
 body[data-page="home"] .editorial-book-rail .ranking-row.is-clickable:focus-visible {
   border-color: transparent;
-  background: transparent;
+  background: none;
   box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transform: none;
   opacity: 0.68;
 }
