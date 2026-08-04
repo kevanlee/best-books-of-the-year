@@ -181,12 +181,13 @@
     const latestAwards = getSortedAwardLists("latest").slice(0, 2);
 
     root.innerHTML = `
-      <section class="masthead masthead--single" id="best-of">
+      <section class="masthead masthead--single editorial-masthead" id="best-of">
         <div class="masthead-main">
-          <h1 class="display-title">Find the best books of every year, according to the list-makers.</h1>
+          <p class="eyebrow">Annual edition · ${data.year} · The aggregate index</p>
+          <h1 class="display-title">The Year<br>in Books</h1>
           <p class="lead">
-            ${data.books.length} books tracked across ${data.lists.length} sources, organized into a clean annual index of
-            editorial lists, awards, and longlists.
+            Critical consensus drawn from ${data.lists.length} of the year's most authoritative reading lists,
+            award longlists, and literary sources.
           </p>
           <div class="meta-strip">
             ${renderYearPills("index.html")}
@@ -194,27 +195,31 @@
         </div>
       </section>
 
-      <section class="home-grid">
+      <section class="section panel section--full editorial-ranking" id="books">
+        <div class="section-heading">
+          <h2 class="eyebrow">Most-listed books of ${data.year}</h2>
+          <a class="text-link" href="${buildBooksHref(activeGenre === "all" ? "" : activeGenre)}">View all →</a>
+        </div>
+        <ol class="editorial-book-rail">${books.slice(0, 8).map((item) => renderRankingRow(item)).join("")}</ol>
+      </section>
+
+      <section class="home-grid editorial-lower">
         <div class="home-main">
-          <section class="section panel" id="books">
+          <section class="section panel">
           <div class="section-heading">
             <div>
-              <h2 class="section-title">${data.year} aggregate</h2>
+              <p class="eyebrow">Explore the index</p>
+              <h2 class="section-title">Browse by genre</h2>
             </div>
           </div>
           <div class="filter-block">
               <div class="pill-row">${renderGenrePills(activeGenre)}</div>
           </div>
-            ${
-              books.length
-                ? `
-                  <ol class="ranking-list">${books.slice(0, 8).map((item) => renderRankingRow(item)).join("")}</ol>
-                  <div class="button-row button-row--end">
-                    <a class="ghost-button" href="${buildBooksHref(activeGenre === "all" ? "" : activeGenre)}">See more books</a>
-                  </div>
-                `
-                : `<div class="empty-state panel-subtle"><p>No books match this filter yet.</p></div>`
-            }
+            <div class="editorial-note">
+              <p class="eyebrow">How the index works</p>
+              <p>We collect the lists, awards, and longlists that define each year in books. The aggregate view surfaces the titles that careful readers keep arriving at from different directions.</p>
+              <p>We weight nothing. We hide nothing. We count each qualifying appearance and let the overlap speak.</p>
+            </div>
           </section>
         </div>
 
