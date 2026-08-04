@@ -25,6 +25,7 @@
   const sourcesById = Object.fromEntries(data.sources.map((source) => [source.id, source]));
   const derived = buildDerivedData();
 
+  setupGlobalChrome();
   syncNavigationYear();
   bindInteractiveCards();
   bindHeaderScrollState();
@@ -169,6 +170,83 @@
       listStats,
       genreStats
     };
+  }
+
+  function setupGlobalChrome() {
+    const header = document.querySelector(".site-header");
+    const footer = document.querySelector(".site-footer");
+    const navItems = [
+      ["index.html", "Best of", "home"],
+      ["books.html", "Books", "books"],
+      ["genres.html", "Genres", "genres"],
+      ["lists.html", "Lists", "lists"],
+      ["awards.html", "Awards", "awards"]
+    ];
+
+    if (header) {
+      header.innerHTML = `
+        <div class="topbar">
+          <a class="brand" href="${buildPageHref("index.html")}" aria-label="Books of the Year home">
+            <span class="brand-copy"><span class="brand-name">Best Books of the Year</span></span>
+          </a>
+          <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">Menu</button>
+          <nav class="site-nav" id="primary-navigation" aria-label="Primary">
+            ${navItems.map(([href, label, key]) => `<a href="${buildPageHref(href)}" ${page === key ? 'aria-current="page"' : ""}>${label}</a>`).join("")}
+          </nav>
+          <div class="utility-nav">
+            <button class="search-toggle" type="button" aria-expanded="false" aria-controls="header-search"><span>Search</span><span aria-hidden="true">⌕</span></button>
+          </div>
+        </div>
+        <div class="header-search" id="header-search" hidden>
+          <form action="${buildPageHref("search.html", { q: null })}" method="get">
+            <label class="sr-only" for="header-search-input">Search books, authors, lists, and genres</label>
+            <input id="header-search-input" name="q" type="search" placeholder="Search books, authors, lists, and genres…" autocomplete="off" />
+            <button type="submit">Search</button>
+            <button class="search-close" type="button" aria-label="Close search">Close</button>
+          </form>
+        </div>`;
+
+      const menuButton = header.querySelector(".menu-toggle");
+      const searchButton = header.querySelector(".search-toggle");
+      const searchPanel = header.querySelector(".header-search");
+      const searchInput = header.querySelector("#header-search-input");
+      const closeSearch = () => {
+        searchPanel.hidden = true;
+        searchButton.setAttribute("aria-expanded", "false");
+      };
+
+      menuButton.addEventListener("click", () => {
+        const isOpen = menuButton.getAttribute("aria-expanded") === "true";
+        menuButton.setAttribute("aria-expanded", String(!isOpen));
+      });
+      searchButton.addEventListener("click", () => {
+        const isOpen = !searchPanel.hidden;
+        searchPanel.hidden = isOpen;
+        searchButton.setAttribute("aria-expanded", String(!isOpen));
+        if (!isOpen) searchInput.focus();
+      });
+      header.querySelector(".search-close").addEventListener("click", closeSearch);
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !searchPanel.hidden) {
+          closeSearch();
+          searchButton.focus();
+        }
+      });
+    }
+
+    if (footer) {
+      const genreLinks = derived.genreStats.slice(0, 5);
+      const listLinks = derived.listStats.filter((item) => item.list.kind !== "Award").slice(0, 4);
+      const awardLinks = getSortedAwardLists("latest").slice(0, 4);
+      footer.innerHTML = `
+        <div class="footer-grid">
+          <section><p class="footer-label">Genres</p>${genreLinks.map((item) => `<a href="${buildGenresHref(item.genre.id)}">${item.genre.name}</a>`).join("")}</section>
+          <section><p class="footer-label">Lists</p>${listLinks.map((item) => `<a href="${buildListHref(item.list.id)}">${item.source.name}</a>`).join("")}</section>
+          <section><p class="footer-label">Awards</p>${awardLinks.map((item) => `<a href="${buildListHref(item.list.id)}">${item.list.title}</a>`).join("")}</section>
+          <section><p class="footer-label">About</p><a href="${buildPageHref("books.html")}">The ${data.year} index</a><a href="${buildPageHref("search.html")}">Search the index</a><span>Equal-weight aggregation</span></section>
+        </div>
+        <div class="footer-brand"><span class="footer-mark">B</span><div><strong>Best Books of the Year</strong><p>An annual index of the books that appear across the lists, prizes, and publications that shape the year in reading.</p></div></div>`;
+    }
   }
 
   function renderHome() {
