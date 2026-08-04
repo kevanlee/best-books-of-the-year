@@ -2201,10 +2201,12 @@
     return `
       <div class="cover ${extraClass || ""} ${book.coverImage ? "cover--image" : ""}" style="--cover-a:${book.cover.a};--cover-b:${book.cover.b};">
         ${book.coverImage ? `<img class="cover-media" src="${escapeHtml(book.coverImage)}" alt="${escapeHtml(book.title)} cover" loading="lazy" />` : ""}
-        <div class="cover-label">
-          <span class="cover-title">${book.title}</span>
-          <span class="cover-author">${book.author}</span>
-        </div>
+        ${book.coverImage ? "" : `
+          <div class="cover-label">
+            <span class="cover-title">${book.title}</span>
+            <span class="cover-author">${book.author}</span>
+          </div>
+        `}
       </div>
     `;
   }
