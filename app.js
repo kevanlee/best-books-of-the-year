@@ -252,11 +252,6 @@
   function renderHome() {
     const activeGenre = params.get("genre") || "all";
     const books = getFilteredBooks(activeGenre);
-    const latestLists = derived.listStats
-      .filter((item) => item.source.type !== "Award" && item.list.kind !== "Award" && item.list.kind !== "Longlist")
-      .sort((left, right) => new Date(right.list.updatedAt) - new Date(left.list.updatedAt))
-      .slice(0, 4);
-    const latestAwards = getSortedAwardLists("latest").slice(0, 2);
 
     root.innerHTML = `
       <section class="masthead masthead--single editorial-masthead" id="best-of">
@@ -279,63 +274,6 @@
           <a class="text-link" href="${buildBooksHref(activeGenre === "all" ? "" : activeGenre)}">View all →</a>
         </div>
         <ol class="editorial-book-rail">${books.slice(0, 8).map((item) => renderRankingRow(item)).join("")}</ol>
-      </section>
-
-      <section class="home-grid editorial-lower">
-        <div class="home-main">
-          <section class="section panel">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Explore the index</p>
-              <h2 class="section-title">Browse by genre</h2>
-            </div>
-          </div>
-            <div class="filter-block">
-              <div class="pill-row">${renderGenrePills(activeGenre)}</div>
-            </div>
-          </section>
-        </div>
-
-        <aside class="home-side">
-          <section class="section panel" id="lists">
-            <div class="section-heading">
-              <div>
-                <h2 class="section-title">Latest lists</h2>
-              </div>
-            </div>
-            <div class="stack-list">
-              ${latestLists.map((item) => renderLatestListCard(item)).join("")}
-            </div>
-            <div class="button-row button-row--end">
-              <a class="ghost-button" href="${buildPageHref("lists.html")}">See all lists</a>
-            </div>
-          </section>
-
-          <section class="section panel" id="awards">
-            <div class="section-heading">
-              <div>
-                <h2 class="section-title">Awards</h2>
-              </div>
-            </div>
-            <div class="stack-list">
-              ${latestAwards.map((item) => renderLatestListCard(item)).join("")}
-            </div>
-            <div class="button-row button-row--end">
-              <a class="ghost-button" href="${buildPageHref("awards.html")}">See all awards</a>
-            </div>
-          </section>
-        </aside>
-      </section>
-
-      <section class="section panel section--full" id="genres">
-        <div class="section-heading">
-          <div>
-            <h2 class="section-title">Genres</h2>
-          </div>
-        </div>
-        <div class="genre-grid">
-          ${derived.genreStats.map((item) => renderGenreCard(item)).join("")}
-        </div>
       </section>
 
       <section class="editor-note-section" aria-labelledby="editor-note-title">

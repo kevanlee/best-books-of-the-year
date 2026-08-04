@@ -93,7 +93,7 @@ button {
   top: 0;
   z-index: 10;
   margin-bottom: var(--space-5);
-  background: rgba(247, 246, 244, 0.97);
+  background: transparent;
   backdrop-filter: none;
   box-shadow: none;
   transition: background-color 180ms ease, backdrop-filter 180ms ease;
@@ -107,8 +107,8 @@ button {
 }
 
 .site-header.is-scrolled {
-  background: rgba(250, 251, 253, 0.82);
-  backdrop-filter: blur(10px);
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .topbar {
@@ -1457,6 +1457,15 @@ body[data-page="home"] .genre-card.is-active {
   background: transparent;
 }
 
+body[data-page="home"] .editorial-book-rail .ranking-row.is-clickable:hover,
+body[data-page="home"] .editorial-book-rail .ranking-row.is-clickable:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  opacity: 0.68;
+}
+
 .editorial-book-rail .ranking-index {
   display: block;
   min-width: 0;
@@ -1935,8 +1944,8 @@ main {
 }
 
 .site-header.is-scrolled {
-  background: rgba(247, 246, 244, 0.97);
-  backdrop-filter: blur(10px);
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .topbar {
