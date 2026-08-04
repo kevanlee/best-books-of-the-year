@@ -176,8 +176,7 @@
     const header = document.querySelector(".site-header");
     const footer = document.querySelector(".site-footer");
     const navItems = [
-      ["index.html", "Best of", "home"],
-      ["books.html", "Books", "books"],
+      ["index.html", "Home", "home"],
       ["genres.html", "Genres", "genres"],
       ["lists.html", "Lists", "lists"],
       ["awards.html", "Awards", "awards"]
@@ -194,7 +193,10 @@
             ${navItems.map(([href, label, key]) => `<a href="${buildPageHref(href)}" ${page === key ? 'aria-current="page"' : ""}>${label}</a>`).join("")}
           </nav>
           <div class="utility-nav">
-            <button class="search-toggle" type="button" aria-expanded="false" aria-controls="header-search"><span>Search</span><span aria-hidden="true">⌕</span></button>
+            <button class="search-toggle" type="button" aria-label="Search" aria-expanded="false" aria-controls="header-search">
+              <span class="search-label">Search</span>
+              <svg class="search-icon" aria-hidden="true" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.4-3.4"></path></svg>
+            </button>
           </div>
         </div>
         <div class="header-search" id="header-search" hidden>
@@ -262,9 +264,6 @@
             Critical consensus drawn from ${data.lists.length} of the year's most authoritative reading lists,
             award longlists, and literary sources.
           </p>
-          <div class="meta-strip">
-            ${renderYearPills("index.html")}
-          </div>
         </div>
       </section>
 
@@ -273,7 +272,7 @@
           <h2 class="eyebrow">Most-listed books of ${data.year}</h2>
           <a class="text-link" href="${buildBooksHref(activeGenre === "all" ? "" : activeGenre)}">View all →</a>
         </div>
-        <ol class="editorial-book-rail">${books.slice(0, 8).map((item) => renderRankingRow(item)).join("")}</ol>
+        <ol class="editorial-book-rail">${books.slice(0, 6).map((item) => renderRankingRow(item)).join("")}</ol>
       </section>
 
       <section class="editor-note-section" aria-labelledby="editor-note-title">
@@ -1818,7 +1817,7 @@
 
     return `
       <li class="ranking-row is-clickable" data-href="${buildBookHref(item.book.slug)}" tabindex="0">
-        <div class="ranking-index">#${item.rank}</div>
+        <div class="ranking-index">${String(item.rank).padStart(2, "0")}</div>
         ${renderCover(item.book, "cover-sm")}
         <div class="ranking-main">
           <div class="title-row">
