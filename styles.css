@@ -1447,14 +1447,14 @@ body[data-page="home"] .genre-card.is-active {
 
 .editorial-book-rail::-webkit-scrollbar { display: none; }
 
-.editorial-book-rail .ranking-row {
+body[data-page="home"] .editorial-book-rail .ranking-row {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   min-width: 0;
   padding: 0;
   border: 0;
-  background: none;
+  background: transparent;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -1492,6 +1492,16 @@ body[data-page="home"] .editorial-book-rail .ranking-row.is-clickable:focus-visi
 .editorial-book-rail .ranking-main { margin-top: 0.75rem; }
 .editorial-book-rail .item-title { font-size: 0.86rem; font-weight: 400; }
 .editorial-book-rail .byline { color: var(--text-soft); font-size: 0.7rem; }
+.editorial-book-rail .ranking-main,
+.editorial-book-rail .title-row,
+.editorial-book-rail .item-title,
+.editorial-book-rail .byline,
+.editorial-book-rail .ranking-side,
+.editorial-book-rail .ranking-tail,
+.editorial-book-rail .ranking-tail strong,
+.editorial-book-rail .ranking-tail span {
+  background: transparent;
+}
 .editorial-book-rail .pill-row { display: none; }
 .editorial-book-rail .ranking-side { display: block; margin-top: 0.35rem; }
 .editorial-book-rail .ranking-tail { display: flex; gap: 0.3rem; justify-content: flex-start; text-align: left; }

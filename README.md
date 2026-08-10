@@ -4,64 +4,56 @@ A static editorial site that aggregates notable books across year-end lists and 
 
 ## Run locally
 
-Open `index.html` directly in a browser. The app is plain HTML, CSS, and JavaScript with no package installation or build step.
+The Airtable API runs as a server-side Vercel Function, so do not open `index.html` directly as a `file://` URL. Run the project through Vercel's local development server:
 
-Because the live data is loaded from Google Sheets, the browser must be online.
+```bash
+npx vercel link
+npx vercel env pull .env.local
+npx vercel dev
+```
+
+During `vercel link`, select the existing `best-books-of-the-year-kevan2` project. Then open the localhost URL printed by `vercel dev`, normally `http://localhost:3000`.
+
+The `.env.local` file contains the Airtable token pulled from Vercel. Keep it out of Git and never share or commit it.
+
+Because the live data is loaded from Airtable through a Vercel Function, the browser must be online.
 
 ## Data source
 
-Public data comes from the **books import** Google spreadsheet:
+Public data comes from three linked Airtable tables: Books, Lists, and Awards. A server-side Vercel Function reads those tables, resolves their linked records, and returns a normalized public dataset. The Airtable Personal Access Token is stored only in Vercel environment variables and is never sent to the browser.
 
-https://docs.google.com/spreadsheets/d/1L_KTNG2FuY4kphCUgb3nt7MwmoSQtzWMVnlbGGOfuIY/edit
+Airtable changes normally appear on the site within 15 minutes. The server response is cached for five minutes and normalized data is cached in the browser for 15 minutes. If Airtable is temporarily unavailable, the last valid browser-cached dataset is used. Fictional seed data is never used as an undisclosed production fallback.
 
-The current canonical book data is on Sheet2 (gid `2039015008`). The site reads it through Google's public Visualization response. No API key, Supabase project, or database credentials are required.
+Required Vercel environment variables:
 
-Spreadsheet changes normally appear on the site within 15 minutes. Normalized data is cached in the browser for that period. If Google Sheets is temporarily unavailable, the last valid cached dataset is used. Fictional seed data is never used as an undisclosed production fallback.
+- `AIRTABLE_PAT`
+- `AIRTABLE_BASE_ID`
+- `AIRTABLE_BOOKS_TABLE_ID`
+- `AIRTABLE_LISTS_TABLE_ID`
+- `AIRTABLE_AWARDS_TABLE_ID`
 
-## Required spreadsheet fields
+## Airtable structure
 
-- `Title`
-- `Author`
-
-The current importer also recognizes:
-
-- `Genre`
-- `Book Summary (AI)`
-- `Book cover URL`
-- `Cover Image`
-- `Amazon URL`
-- `Goodreads URL`
-- `Lists`
-- `Times in Best Of Lists`
-- `ISBN-10`
-- `ISBN-13`
-- `Book Awards`
-- `Longlisted`
-- `Awards`
-- `Shortlisted`
-- `Last Modified`
-- `Popularity`
-- `Published`
-
-Header matching is case-insensitive and punctuation-tolerant.
+- Books: `Title`, `Author`, `Slug`, `Genre`, `Description`, `Amazon URL`, `Book cover URL`
+- Lists: `Name`, `Slug`, `Source`, `Year`, `URL`, `Cover Photo`, `Summary`, and linked `Books`
+- Awards: `Award Name`, `Award Slug`, `Award Description`, `Category`, `Year`, `Official website`, `Awarding Body`, `Award Image`, and linked `Longlist`, `Shortlist`, and `Winner`
 
 ## Editing rules
 
-- Keep the spreadsheet shared as **Anyone with the link can view**.
-- Use stable IDs when an `ID` column is added.
-- Use lowercase, hyphenated, unique slugs when a `Slug` column is added.
-- Prefer a durable `Book cover URL`. Airtable attachment URLs can expire.
-- Store ISBN values as text so leading zeroes are preserved.
-- Use a pipe character (`|`) between list names when possible. The loader also supports quoted comma-separated values.
-- Add a `Published` column to control visibility. Blank currently counts as published; explicit false/no/0 hides a row.
+- Keep linked Books, Lists, and Awards records intact; the API joins tables using Airtable record IDs.
+- Use lowercase, hyphenated, unique slugs.
+- Prefer a durable `Book cover URL` for books. Airtable attachment URLs can expire.
+- List membership comes from the Lists table's linked `Books` field.
+- Award recognition comes from the Awards table's linked `Longlist`, `Shortlist`, and `Winner` fields.
 
 ## Runtime files
 
-- `data-access.js`: loads, validates, normalizes, and caches Google Sheets data.
+- `api/books.js`: securely loads, joins, and normalizes Airtable data.
+- `data-access.js`: loads and caches the public normalized API response.
 - `app.js`: renders pages and derives rankings.
 - `styles.css`: shared styles.
 - `app-data.js`: legacy test fixture only; public pages do not load it.
-- `admin.html`: directs editors to the spreadsheet.
+- `admin.html`: directs editors to Airtable.
 
 ## Pages
 
@@ -76,7 +68,7 @@ Header matching is case-insensitive and punctuation-tolerant.
 
 ## Ranking
 
-The initial spreadsheet-backed ranking counts unique parsed list appearances. Ranked-position weighting is not applied because the current spreadsheet does not store reliable positions.
+The Airtable-backed ranking counts linked book-list appearances. Ranked-position weighting is not applied because the current Lists relationship does not store positions.
 
 ## Diagnostics
 
@@ -88,14 +80,4 @@ Open the browser console and inspect `window.BOOKLIST_RUNTIME_DETAILS` for:
 - normalization warnings
 - load errors
 
-Rows with missing optional values continue to load. Missing required columns or an unavailable spreadsheet produce an explicit error state rather than demo records.
-
-## Future spreadsheet structure
-
-For accurate list metadata and ranked lists, split the workbook into three tabs:
-
-- `Books`
-- `Lists`
-- `Appearances`
-
-This avoids embedding relational data in comma-separated cells and allows sources, URLs, positions, and scoring eligibility to be modeled directly.
+Records with missing optional values continue to load. An unavailable API produces an explicit error state rather than demo records.
