@@ -101,7 +101,7 @@ function normalizeAirtableData(bookRecords, listRecords, awardRecords) {
     if (!author) warnings.push(`Book record ${record.id}${title ? ` (${title})` : ""} has no Author.`);
     const genre = text(fields.Genre);
     const slug = slugify(fields.Slug || title) || record.id.toLowerCase();
-    const coverImage = validHttpUrl(fields["Book cover URL"]);
+    const coverImage = attachmentUrl(fields["Cover Image"]) || validHttpUrl(fields["Book cover URL"]);
 
     return {
       id: record.id,

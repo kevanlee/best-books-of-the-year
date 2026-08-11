@@ -3,6 +3,11 @@
   const fallbackSeedData = window.BOOKLIST_DATA || { year: new Date().getFullYear() };
   const root = document.getElementById("page-root");
   const params = new URLSearchParams(window.location.search);
+  const cleanBookRoute = window.location.pathname.match(/^\/(\d{4})\/([^/]+)\/?$/);
+  if (cleanBookRoute) {
+    params.set("year", cleanBookRoute[1]);
+    params.set("slug", decodeURIComponent(cleanBookRoute[2]));
+  }
   const page = document.body.dataset.page || "home";
 
   if (!root) {
@@ -2371,7 +2376,8 @@
   }
 
   function buildBookHref(slug) {
-    return buildPageHref("book.html", { slug });
+    const year = Number(params.get("year")) || data.year;
+    return `/${encodeURIComponent(year)}/${encodeURIComponent(slug)}`;
   }
 
   function buildListHref(id, extraParams) {

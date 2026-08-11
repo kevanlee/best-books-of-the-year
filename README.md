@@ -34,7 +34,7 @@ Required Vercel environment variables:
 
 ## Airtable structure
 
-- Books: `Title`, `Author`, `Slug`, `Genre`, `Description`, `Amazon URL`, `Book cover URL`
+- Books: `Title`, `Author`, `Slug`, `Genre`, `Description`, `Cover Image`, `Amazon URL`, `Book cover URL`
 - Lists: `Name`, `Slug`, `Source`, `Year`, `URL`, `Cover Photo`, `Summary`, and linked `Books`
 - Awards: `Award Name`, `Award Slug`, `Award Description`, `Category`, `Year`, `Official website`, `Awarding Body`, `Award Image`, and linked `Longlist`, `Shortlist`, and `Winner`
 
@@ -42,7 +42,7 @@ Required Vercel environment variables:
 
 - Keep linked Books, Lists, and Awards records intact; the API joins tables using Airtable record IDs.
 - Use lowercase, hyphenated, unique slugs.
-- Prefer a durable `Book cover URL` for books. Airtable attachment URLs can expire.
+- Book covers prefer the first `Cover Image` attachment and fall back to `Book cover URL` when no attachment is present. Airtable attachment URLs can expire, so retain the fallback URL where possible.
 - List membership comes from the Lists table's linked `Books` field.
 - Award recognition comes from the Awards table's linked `Longlist`, `Shortlist`, and `Winner` fields.
 
@@ -81,3 +81,7 @@ Open the browser console and inspect `window.BOOKLIST_RUNTIME_DETAILS` for:
 - load errors
 
 Records with missing optional values continue to load. An unavailable API produces an explicit error state rather than demo records.
+
+## Book URLs
+
+Public book links use `/YEAR/SLUG`, such as `/2025/what-we-can-know`. Vercel rewrites those requests internally to `book.html`; the existing `book.html?year=2025&slug=...` format remains available for backward compatibility.

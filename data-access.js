@@ -2,7 +2,7 @@
   const CONFIG = {
     endpoint: "/api/books",
     activeYear: 2025,
-    cacheKey: "books-of-the-year-airtable-v1",
+    cacheKey: "books-of-the-year-airtable-v2",
     cacheTtlMs: 15 * 60 * 1000,
     requestTimeoutMs: 15000
   };
