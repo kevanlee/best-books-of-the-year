@@ -2,8 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "^/(\\d{4})/([^/]+)$",
-      "destination": "/book.html?year=$1&slug=$2"
+      "source": "/:year/:slug",
+      "destination": "/book.html"
     }
   ]
 }
