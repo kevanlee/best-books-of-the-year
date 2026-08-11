@@ -2412,7 +2412,8 @@
   }
 
   function buildPageHref(path, overrides) {
-    const [pathname, hash = ""] = String(path || "").split("#");
+    const [rawPathname, hash = ""] = String(path || "").split("#");
+    const pathname = rawPathname.replace(/^\/+/, "");
     const isInternalHtml = pathname === "" || pathname.endsWith(".html");
     if (!isInternalHtml) {
       return path;
@@ -2456,7 +2457,7 @@
     });
 
     const queryString = query.toString();
-    return `${pathname}${queryString ? `?${queryString}` : ""}${hash ? `#${hash}` : ""}`;
+    return `/${pathname}${queryString ? `?${queryString}` : ""}${hash ? `#${hash}` : ""}`;
   }
 
   function getHost(url) {
